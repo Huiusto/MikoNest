@@ -23,6 +23,7 @@ public partial class LaunchPage : UserControl
     private readonly MainWindow _main;
     private string _selectedKey;
     private string? _locatedDir;
+    private bool _gameRunning;
     private readonly List<(Button Dot, string Key)> _dots = new();
 
     public LaunchPage(MainWindow main)
@@ -241,6 +242,15 @@ public partial class LaunchPage : UserControl
 
         GameLabel.Text = $"当前游戏：{g.Name}";
 
+        if (_gameRunning)
+        {
+            // 游戏运行中：按钮保持「游戏启动中」，直到游戏进程退出
+            BtnMain.Content = "游戏启动中";
+            BtnMain.IsEnabled = false;
+            LocateHint.Text = _locatedDir != null ? $"已定位：{_locatedDir}" : LocateHint.Text;
+            return;
+        }
+
         if (exe != null)
         {
             BtnMain.Content = "开始游戏";
@@ -266,32 +276,56 @@ public partial class LaunchPage : UserControl
 
         if (exe != null)
         {
-            BtnMain.IsEnabled = false;
+            _gameRunning = true;
             BtnMain.Content = "游戏启动中";
+            BtnMain.IsEnabled = false;
 
+            Process? proc = null;
+            var workDir = Path.GetDirectoryName(exe) ?? _locatedDir;
             try
             {
-                Process.Start(new ProcessStartInfo(exe)
+                // 先以非 shell 方式启动，拿到进程句柄用于判断游戏是否结束
+                proc = Process.Start(new ProcessStartInfo(exe)
                 {
-                    WorkingDirectory = Path.GetDirectoryName(exe) ?? _locatedDir,
-                    UseShellExecute = true,
+                    WorkingDirectory = workDir,
+                    UseShellExecute = false,
                 });
             }
-            catch (Exception ex)
+            catch
             {
-                BtnMain.Content = "开始游戏";
-                BtnMain.IsEnabled = true;
-                MessageBox.Show($"启动失败：{ex.Message}", "mi-Nest", MessageBoxButton.OK, MessageBoxImage.Error);
-                return;
+                // 需要提升权限时回退到 shell 启动，再按进程名跟踪
+                try
+                {
+                    Process.Start(new ProcessStartInfo(exe)
+                    {
+                        WorkingDirectory = workDir,
+                        UseShellExecute = true,
+                    });
+                }
+                catch (Exception ex)
+                {
+                    RestoreLaunchState();
+                    MessageBox.Show($"启动失败：{ex.Message}", "mi-Nest", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
             }
 
-            // 启动 1 秒后把窗口最小化，交给游戏前台运行
-            await Task.Delay(1000);
+            // 启动 3 秒后把窗口最小化，交给游戏前台运行
+            await Task.Delay(3000);
             var win = Window.GetWindow(this);
             if (win != null) win.WindowState = WindowState.Minimized;
 
-            BtnMain.Content = "开始游戏";
-            BtnMain.IsEnabled = true;
+            // 「游戏启动中」保持显示，直到游戏进程退出
+            try
+            {
+                if (proc == null) proc = await FindGameProcessAsync(exe, 10);
+                if (proc != null) await proc.WaitForExitAsync();
+            }
+            catch
+            {
+                // 进程不可跟踪时不再阻塞按钮
+            }
+            RestoreLaunchState();
             return;
         }
 
@@ -307,6 +341,28 @@ public partial class LaunchPage : UserControl
         {
             MessageBox.Show("未在目录中找到游戏主程序，请点击下方「定位游戏」按钮手动选择。", "mi-Nest", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
+    }
+
+    /// <summary>按进程名轮询游戏进程（shell 启动拿不到句柄时使用）</summary>
+    private static async Task<Process?> FindGameProcessAsync(string exe, int timeoutSeconds)
+    {
+        var name = Path.GetFileNameWithoutExtension(exe);
+        for (var i = 0; i < timeoutSeconds * 4; i++)
+        {
+            var procs = Process.GetProcessesByName(name);
+            if (procs.Length > 0) return procs[0];
+            await Task.Delay(250);
+        }
+        return null;
+    }
+
+    /// <summary>游戏结束（或启动失败）后按钮恢复为「开始游戏」</summary>
+    private void RestoreLaunchState()
+    {
+        _gameRunning = false;
+        BtnMain.Content = "开始游戏";
+        BtnMain.IsEnabled = true;
+        RefreshState();
     }
 
     private void BtnRelocate_Click(object sender, RoutedEventArgs e) => PickFolder();
