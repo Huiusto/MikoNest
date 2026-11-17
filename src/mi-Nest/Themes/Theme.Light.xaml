@@ -1,0 +1,49 @@
+﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- 页面背景（苹果式浅灰渐变） -->
+    <LinearGradientBrush x:Key="PageBg" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#F8F8FA" Offset="0"/>
+        <GradientStop Color="#F0F0F4" Offset="1"/>
+    </LinearGradientBrush>
+
+    <!-- 侧边栏（半透明毛玻璃感，透出背景渐变） -->
+    <SolidColorBrush x:Key="SidebarBg" Color="#F2F7F7F9"/>
+    <SolidColorBrush x:Key="SidebarFg" Color="#1D1D1F"/>
+    <SolidColorBrush x:Key="SidebarDim" Color="#86868B"/>
+    <SolidColorBrush x:Key="NavHoverBg" Color="#66E5E5EA"/>
+    <SolidColorBrush x:Key="NavActiveBg" Color="#330A84FF"/>
+    <SolidColorBrush x:Key="NavActiveFg" Color="#0A84FF"/>
+    <SolidColorBrush x:Key="NavBorder" Color="#14000000"/>
+
+    <!-- 卡片（白色 + 微阴影在页面层使用） -->
+    <SolidColorBrush x:Key="CardBg" Color="#FFFFFF"/>
+    <SolidColorBrush x:Key="CardBorder" Color="#1A000000"/>
+    <SolidColorBrush x:Key="InputBg" Color="#F5F5F7"/>
+
+    <!-- 卡片阴影（苹果式柔和投影） -->
+    <DropShadowEffect x:Key="CardShadow" BlurRadius="24" ShadowDepth="0" Direction="270"
+                      Opacity="0.14" Color="#000000"/>
+
+    <!-- 文字 -->
+    <SolidColorBrush x:Key="TextPrimary" Color="#1D1D1F"/>
+    <SolidColorBrush x:Key="TextSecondary" Color="#86868B"/>
+    <SolidColorBrush x:Key="TextOnAccent" Color="#FFFFFF"/>
+
+    <!-- 主题强调（苹果蓝） -->
+    <SolidColorBrush x:Key="Accent" Color="#0A84FF"/>
+    <SolidColorBrush x:Key="AccentHover" Color="#0071E3"/>
+    <SolidColorBrush x:Key="AccentSoft" Color="#220A84FF"/>
+
+    <!-- 控件 -->
+    <SolidColorBrush x:Key="ButtonBg" Color="#FFFFFF"/>
+    <SolidColorBrush x:Key="ButtonBgHover" Color="#E8E8ED"/>
+    <SolidColorBrush x:Key="ButtonFg" Color="#1D1D1F"/>
+    <SolidColorBrush x:Key="ButtonBorder" Color="#33000000"/>
+
+    <!-- 状态 -->
+    <SolidColorBrush x:Key="Danger" Color="#E5484D"/>
+    <SolidColorBrush x:Key="Success" Color="#30A46C"/>
+    <SolidColorBrush x:Key="Warning" Color="#FFB224"/>
+
+</ResourceDictionary>

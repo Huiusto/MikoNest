@@ -1,0 +1,44 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- 胡桃红：暖奶油底 + 胡桃红强调色（胡桃主题） -->
+    <SolidColorBrush x:Key="SidebarBg" Color="#F2FFF6F0"/>
+    <SolidColorBrush x:Key="SidebarFg" Color="#4A2B29"/>
+    <SolidColorBrush x:Key="SidebarDim" Color="#A9837C"/>
+    <SolidColorBrush x:Key="NavHoverBg" Color="#33C86A5E"/>
+    <SolidColorBrush x:Key="NavActiveBg" Color="#26B03A48"/>
+    <SolidColorBrush x:Key="NavActiveFg" Color="#B03A48"/>
+    <SolidColorBrush x:Key="NavBorder" Color="#26B03A48"/>
+
+    <!-- 页面背景（暖奶油渐变） -->
+    <LinearGradientBrush x:Key="PageBg" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#FFF8F3" Offset="0"/>
+        <GradientStop Color="#FBE7DC" Offset="1"/>
+    </LinearGradientBrush>
+
+    <!-- 卡片（奶油白 + 玫瑰描边） -->
+    <SolidColorBrush x:Key="CardBg" Color="#FFFDFC"/>
+    <SolidColorBrush x:Key="CardBorder" Color="#33C4786E"/>
+    <SolidColorBrush x:Key="InputBg" Color="#FDF1EA"/>
+
+    <SolidColorBrush x:Key="TextPrimary" Color="#3D2A28"/>
+    <SolidColorBrush x:Key="TextSecondary" Color="#9A7A73"/>
+    <SolidColorBrush x:Key="TextOnAccent" Color="#FFFFFF"/>
+
+    <!-- 主题强调（胡桃红） -->
+    <SolidColorBrush x:Key="Accent" Color="#B03A48"/>
+    <SolidColorBrush x:Key="AccentHover" Color="#8E2B37"/>
+    <SolidColorBrush x:Key="AccentSoft" Color="#26B03A48"/>
+
+    <SolidColorBrush x:Key="ButtonBg" Color="#FFFDFC"/>
+    <SolidColorBrush x:Key="ButtonBgHover" Color="#F8E7DE"/>
+    <SolidColorBrush x:Key="ButtonFg" Color="#8E3A3A"/>
+    <SolidColorBrush x:Key="ButtonBorder" Color="#33B03A48"/>
+
+    <SolidColorBrush x:Key="Danger" Color="#C93C46"/>
+    <SolidColorBrush x:Key="Success" Color="#3F9B6B"/>
+    <SolidColorBrush x:Key="Warning" Color="#E9A23B"/>
+
+    <DropShadowEffect x:Key="CardShadow" BlurRadius="22" ShadowDepth="0" Direction="270"
+                      Opacity="0.12" Color="#6B2B2B"/>
+</ResourceDictionary>

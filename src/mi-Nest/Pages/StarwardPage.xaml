@@ -1,0 +1,143 @@
+<UserControl x:Class="MiNest.Pages.StarwardPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <Grid Margin="26,22,26,26">
+            <StackPanel>
+                <!-- 标题 -->
+                <StackPanel Orientation="Horizontal">
+                    <Border Width="46" Height="46" CornerRadius="13"
+                            Background="{DynamicResource AccentSoft}"
+                            VerticalAlignment="Top">
+                        <TextBlock Text="&#xE734;" FontFamily="Segoe MDL2 Assets" FontSize="22"
+                                   Foreground="{DynamicResource Accent}" HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"/>
+                    </Border>
+                    <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="Starward" FontSize="22" FontWeight="Bold"
+                                   Foreground="{DynamicResource TextPrimary}"/>
+                        <TextBlock Text="米哈游 PC 启动器 · 源代码已内置到 mi-Nest"
+                                   FontSize="12.5" Margin="0,4,0,0"
+                                   Foreground="{DynamicResource TextSecondary}"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- 项目卡 -->
+                <Border Margin="0,18,0,0" Padding="20,16"
+                        Background="{DynamicResource CardBg}"
+                        BorderBrush="{DynamicResource CardBorder}" BorderThickness="1"
+                        CornerRadius="14" Effect="{DynamicResource CardShadow}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="基于 Scighost/Starward（MIT 开源协议）的源代码移植" FontSize="14"
+                                       FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"/>
+                            <TextBlock Text="已把 GameRecord.DailyNote（DS2 动态签名 + HyperionClient 请求头）、跨游戏抽卡记录本地库、游戏定位与启动等核心模块移植进 mi-Nest，数据与本机米哈游账号同步。" FontSize="12.5" Margin="0,8,0,0" TextWrapping="Wrap" LineHeight="21" Foreground="{DynamicResource TextSecondary}"/>
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="在软件内打开 GitHub"
+                                Style="{StaticResource LinkButton}" VerticalAlignment="Center"
+                                Click="OpenGitHub_Click"/>
+                    </Grid>
+                </Border>
+
+                <!-- 已内置功能 -->
+                <TextBlock Text="已内置功能" FontSize="15" FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextPrimary}" Margin="0,22,0,10"/>
+                <UniformGrid Columns="2">
+                    <Border Margin="0,0,10,10" Padding="18,14"
+                            Background="{DynamicResource CardBg}"
+                            BorderBrush="{DynamicResource CardBorder}" BorderThickness="1"
+                            CornerRadius="14" Effect="{DynamicResource CardShadow}"
+                            Cursor="Hand" MouseLeftButtonUp="GotoGacha_Click">
+                        <StackPanel>
+                            <TextBlock Text="&#xE838;" FontFamily="Segoe MDL2 Assets" FontSize="22"
+                                       Foreground="{DynamicResource Accent}"/>
+                            <TextBlock Text="抽卡记录" FontSize="14.5" FontWeight="SemiBold" Margin="0,10,0,0"
+                                       Foreground="{DynamicResource TextPrimary}"/>
+                            <TextBlock Text="原神 / 星铁 / 绝区零 跨游戏本地库，UID 筛选与保底统计" FontSize="12"
+                                       Margin="0,5,0,0" Foreground="{DynamicResource TextSecondary}"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Margin="0,0,0,10" Padding="18,14"
+                            Background="{DynamicResource CardBg}"
+                            BorderBrush="{DynamicResource CardBorder}" BorderThickness="1"
+                            CornerRadius="14" Effect="{DynamicResource CardShadow}"
+                            Cursor="Hand" MouseLeftButtonUp="GotoNote_Click">
+                        <StackPanel>
+                            <TextBlock Text="&#xE70B;" FontFamily="Segoe MDL2 Assets" FontSize="22"
+                                       Foreground="{DynamicResource Accent}"/>
+                            <TextBlock Text="实时便笺" FontSize="14.5" FontWeight="SemiBold" Margin="0,10,0,0"
+                                       Foreground="{DynamicResource TextPrimary}"/>
+                            <TextBlock Text="体力 / 开拓力 / 电量，DS2 签名接口移植自 Starward.Core" FontSize="12"
+                                       Margin="0,5,0,0" Foreground="{DynamicResource TextSecondary}"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Margin="0,0,10,0" Padding="18,14"
+                            Background="{DynamicResource CardBg}"
+                            BorderBrush="{DynamicResource CardBorder}" BorderThickness="1"
+                            CornerRadius="14" Effect="{DynamicResource CardShadow}"
+                            Cursor="Hand" MouseLeftButtonUp="GotoLaunch_Click">
+                        <StackPanel>
+                            <TextBlock Text="&#xE768;" FontFamily="Segoe MDL2 Assets" FontSize="22"
+                                       Foreground="{DynamicResource Accent}"/>
+                            <TextBlock Text="游戏启动" FontSize="14.5" FontWeight="SemiBold" Margin="0,10,0,0"
+                                       Foreground="{DynamicResource TextPrimary}"/>
+                            <TextBlock Text="自动定位已装游戏，一键开始；各游戏独立背景" FontSize="12"
+                                       Margin="0,5,0,0" Foreground="{DynamicResource TextSecondary}"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Margin="0,0,0,0" Padding="18,14"
+                            Background="{DynamicResource CardBg}"
+                            BorderBrush="{DynamicResource CardBorder}" BorderThickness="1"
+                            CornerRadius="14" Effect="{DynamicResource CardShadow}"
+                            Cursor="Hand" MouseLeftButtonUp="GotoSettings_Click">
+                        <StackPanel>
+                            <TextBlock Text="&#xE771;" FontFamily="Segoe MDL2 Assets" FontSize="22"
+                                       Foreground="{DynamicResource Accent}"/>
+                            <TextBlock Text="界面与设置" FontSize="14.5" FontWeight="SemiBold" Margin="0,10,0,0"
+                                       Foreground="{DynamicResource TextPrimary}"/>
+                            <TextBlock Text="9 套主题配色、通用设置、隐藏设置与项目栏管理" FontSize="12"
+                                       Margin="0,5,0,0" Foreground="{DynamicResource TextSecondary}"/>
+                        </StackPanel>
+                    </Border>
+                </UniformGrid>
+
+                <!-- 便笺预览 -->
+                <TextBlock Text="实时便笺预览" FontSize="15" FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextPrimary}" Margin="0,22,0,10"/>
+                <Border Padding="18,14"
+                        Background="{DynamicResource CardBg}"
+                        BorderBrush="{DynamicResource CardBorder}" BorderThickness="1"
+                        CornerRadius="14" Effect="{DynamicResource CardShadow}">
+                    <ItemsControl x:Name="NotePreview">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Margin="0,0,0,8" Padding="14,10"
+                                        Background="{DynamicResource InputBg}" CornerRadius="11">
+                                    <Grid>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding GameName}" FontSize="13" FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource TextPrimary}" Width="90"/>
+                                            <TextBlock Text="{Binding Line}" FontSize="12.5"
+                                                       Foreground="{DynamicResource TextSecondary}"/>
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding Status}" HorizontalAlignment="Right"
+                                                   FontSize="12" Foreground="{Binding StatusBrush}"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Border>
+            </StackPanel>
+        </Grid>
+    </ScrollViewer>
+</UserControl>

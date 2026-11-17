@@ -1,0 +1,17 @@
+﻿<Application x:Class="MiNest.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:MiNest">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Themes/Styles.xaml"/>
+                <ResourceDictionary x:Name="ThemeDictionary" Source="Themes/Theme.Light.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            <local:RankToBrushConverter x:Key="RankBrush"/>
+            <local:RankToStarTextConverter x:Key="RankStar"/>
+            <local:BoolToVisibilityConverter x:Key="BoolToVis"/>
+            <local:InverseBoolToVisibilityConverter x:Key="InvBoolToVis"/>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

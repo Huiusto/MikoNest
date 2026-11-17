@@ -1,0 +1,141 @@
+﻿<UserControl x:Class="MiNest.Pages.LaunchPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             MouseLeave="OnRootMouseLeave">
+    <UserControl.Resources>
+        <!-- 左侧圆点切换器样式：选中=白色圆环，未选中=浅灰实心小圆（仿米哈游启动器指示器） -->
+        <Style x:Key="DotButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="18"/>
+            <Setter Property="Height" Value="18"/>
+            <Setter Property="Margin" Value="0,7,0,7"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid>
+                            <Ellipse x:Name="Dot" Width="13" Height="13" Fill="#99FFFFFF"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="Tag" Value="active">
+                                <Setter TargetName="Dot" Property="Fill" Value="Transparent"/>
+                                <Setter TargetName="Dot" Property="Stroke" Value="White"/>
+                                <Setter TargetName="Dot" Property="StrokeThickness" Value="2.5"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Dot" Property="Fill" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+    <Grid x:Name="RootGrid" MouseMove="RootGrid_MouseMove">
+        <!-- 背景图：跟随所选游戏切换（原神 / 星穹铁道 / 绝区零 / 崩坏3 各有专属官方宣传图） -->
+        <Image x:Name="BgImage" Stretch="UniformToFill"/>
+        <!-- 轻量暗化层，保证文字可读性 -->
+        <Border Background="#40000000"/>
+
+        <Grid Margin="26,20,26,24">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- ===== 顶部栏 ===== -->
+            <Grid Grid.Row="0">
+                <StackPanel Orientation="Horizontal">
+                    <Button Style="{StaticResource AccentButton}" Content="米哈云游" FontSize="14"
+                            Padding="20,9" Click="BtnMhyy_Click"/>
+                    <ToggleButton x:Name="BtnAllGames" Content="全部游戏  ▾" FontSize="14"
+                                  Padding="20,9" Margin="10,0,0,0"/>
+                    <Popup IsOpen="{Binding IsChecked, ElementName=BtnAllGames}"
+                           PlacementTarget="{Binding ElementName=BtnAllGames}"
+                           StaysOpen="False" AllowsTransparency="True"
+                           Placement="Bottom">
+                        <Border x:Name="AllGamesMenu" Background="{DynamicResource CardBg}"
+                                BorderBrush="{DynamicResource CardBorder}" BorderThickness="1"
+                                CornerRadius="12" Padding="8" MinWidth="240"
+                                Margin="0,6,0,0" Effect="{DynamicResource CardShadow}">
+                            <StackPanel x:Name="AllGamesMenuPanel"/>
+                        </Border>
+                    </Popup>
+                    <TextBlock x:Name="GameLabel" Text="当前游戏：原神" VerticalAlignment="Center"
+                               Margin="18,0,0,0" Foreground="White" FontSize="13.5"
+                               FontWeight="SemiBold"/>
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <Button x:Name="BtnResetBg" Content="恢复默认" Padding="12,7" Margin="0,0,8,0"
+                            Visibility="Collapsed" Click="BtnResetBg_Click"
+                            Background="#AA000000" BorderBrush="#55FFFFFF" Foreground="White"/>
+                    <Button Content="更换背景" Padding="12,7" Click="BtnChangeBg_Click"
+                            Background="#AA000000" BorderBrush="#55FFFFFF" Foreground="White"/>
+                </StackPanel>
+            </Grid>
+
+            <!-- ===== 中部留白，突出背景 ===== -->
+            <Grid Grid.Row="1"/>
+
+            <!-- ===== 底部 ===== -->
+            <Grid Grid.Row="2">
+                <!-- 预约游戏 -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom">
+                    <TextBlock Text="预约游戏" Foreground="White" FontSize="15" FontWeight="SemiBold"
+                               VerticalAlignment="Center" Margin="0,0,14,0"/>
+                    <Button x:Name="BtnReserve1" Margin="0,0,10,0" Padding="18,10" Cursor="Hand"
+                            Background="#33000000" BorderBrush="#55FFFFFF" Foreground="White"
+                            Click="Reserve_Click" Tag="https://planet.mihoyo.com/home">
+                        <StackPanel>
+                            <TextBlock Text="星布谷地" FontWeight="SemiBold" Foreground="White" FontSize="13"/>
+                            <TextBlock Text="未上线 · 预约" FontSize="10.5" Foreground="#FFD666" Margin="0,3,0,0"/>
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="BtnReserve2" Margin="0,0,10,0" Padding="18,10" Cursor="Hand"
+                            Background="#33000000" BorderBrush="#55FFFFFF" Foreground="White"
+                            Click="Reserve_Click" Tag="https://nodusfall.mihoyo.com/home">
+                        <StackPanel>
+                            <TextBlock Text="源初之结" FontWeight="SemiBold" Foreground="White" FontSize="13"/>
+                            <TextBlock Text="未上线 · 预约" FontSize="10.5" Foreground="#FFD666" Margin="0,3,0,0"/>
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="BtnReserve3" Margin="0,0,10,0" Padding="18,10" Cursor="Hand"
+                            Background="#33000000" BorderBrush="#55FFFFFF" Foreground="White"
+                            Click="Reserve_Click" Tag="https://yyjl.mihoyo.com/">
+                        <StackPanel>
+                            <TextBlock Text="因缘精灵" FontWeight="SemiBold" Foreground="White" FontSize="13"/>
+                            <TextBlock Text="未上线 · 预约" FontSize="10.5" Foreground="#FFD666" Margin="0,3,0,0"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+
+                <!-- 右下角：获取游戏 / 开始游戏 / 定位游戏 -->
+                <StackPanel HorizontalAlignment="Right" VerticalAlignment="Bottom">
+                    <Button x:Name="BtnMain" Style="{StaticResource AccentButton}" Content="获取游戏"
+                            FontSize="16" FontWeight="SemiBold" Padding="46,13"
+                            HorizontalAlignment="Right" Click="BtnMain_Click"/>
+                    <Button x:Name="BtnRelocate" Content="定位游戏" FontSize="11.5" Padding="14,5"
+                            Margin="0,10,0,0" HorizontalAlignment="Right"
+                            Background="#AA000000" BorderBrush="#55FFFFFF" Foreground="White"
+                            Click="BtnRelocate_Click"/>
+                    <TextBlock x:Name="LocateHint" Foreground="#CCFFFFFF" FontSize="11.5"
+                               HorizontalAlignment="Right" Margin="0,10,0,0" TextWrapping="Wrap"
+                               MaxWidth="460" TextAlignment="Right"/>
+                </StackPanel>
+            </Grid>
+        </Grid>
+
+        <!-- ===== 左侧竖排圆点切换器：鼠标靠近左边缘浮现，离开自动消失（竖排 4 个点 = 4 款游戏） =====
+             注意：必须直接放在 RootGrid 下（不能放在 IsHitTestVisible=False 的父容器内，否则整面板不可点击） -->
+        <Border x:Name="DotPanel" HorizontalAlignment="Left" VerticalAlignment="Center"
+                Margin="36,0,0,0"
+                Background="#66000000" BorderBrush="#66FFFFFF" BorderThickness="1"
+                CornerRadius="14" Padding="9,12"
+                Opacity="0" Visibility="Collapsed" IsHitTestVisible="True">
+            <StackPanel x:Name="DotStack"/>
+        </Border>
+    </Grid>
+</UserControl>

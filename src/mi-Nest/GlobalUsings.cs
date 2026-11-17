@@ -1,0 +1,21 @@
+// 全局类型别名：消除 WPF 与 WinForms（项目启用了 UseWindowsForms 以使用文件夹/文件对话框）
+// 共享类型名（Application/UserControl/Button/MessageBox/Brush/Color 等）统一指向 WPF 版本。
+global using Application = System.Windows.Application;
+global using UserControl = System.Windows.Controls.UserControl;
+global using RadioButton = System.Windows.Controls.RadioButton;
+global using TextBox = System.Windows.Controls.TextBox;
+global using Button = System.Windows.Controls.Button;
+global using ComboBox = System.Windows.Controls.ComboBox;
+global using ListBox = System.Windows.Controls.ListBox;
+global using Image = System.Windows.Controls.Image;
+global using Window = System.Windows.Window;
+global using MessageBox = System.Windows.MessageBox;
+global using Brush = System.Windows.Media.Brush;
+global using Color = System.Windows.Media.Color;
+global using ColorConverter = System.Windows.Media.ColorConverter;
+global using Brushes = System.Windows.Media.Brushes;
+global using Point = System.Windows.Point;
+global using Cursors = System.Windows.Input.Cursors;
+global using Orientation = System.Windows.Controls.Orientation;
+global using HorizontalAlignment = System.Windows.HorizontalAlignment;
+global using VerticalAlignment = System.Windows.VerticalAlignment;

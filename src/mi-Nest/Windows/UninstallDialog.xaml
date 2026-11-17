@@ -1,0 +1,185 @@
+<Window x:Class="MiNest.Windows.UninstallDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="卸载程序"
+        Width="700" Height="486"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        FontFamily="Microsoft YaHei UI">
+
+    <Window.Resources>
+        <!-- 取消：奶油底 + 玫瑰描边 胶囊按钮 -->
+        <Style x:Key="GhostButton" TargetType="Button">
+            <Setter Property="Width" Value="152"/>
+            <Setter Property="Height" Value="48"/>
+            <Setter Property="FontSize" Value="17"/>
+            <Setter Property="Foreground" Value="#B47066"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg" CornerRadius="24"
+                                Background="#FFF7F2"
+                                BorderBrush="#E6B4AA" BorderThickness="1.4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#FDECE6"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#F8DED6"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 卸载：玫瑰色实心胶囊按钮 -->
+        <Style x:Key="PrimaryButton" TargetType="Button">
+            <Setter Property="Width" Value="214"/>
+            <Setter Property="Height" Value="48"/>
+            <Setter Property="FontSize" Value="17"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg" CornerRadius="24" BorderThickness="0">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                    <GradientStop Color="#CE7C71" Offset="0"/>
+                                    <GradientStop Color="#BC6259" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <Border.Effect>
+                                <DropShadowEffect Color="#9C5148" BlurRadius="14" ShadowDepth="3" Opacity="0.28"/>
+                            </Border.Effect>
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Opacity" Value="0.92"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bg" Property="Opacity" Value="0.82"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 标题栏关闭按钮 -->
+        <Style x:Key="CloseButton" TargetType="Button">
+            <Setter Property="Width" Value="40"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="FontSize" Value="22"/>
+            <Setter Property="Foreground" Value="#A25A50"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg" CornerRadius="8" Background="Transparent">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#F2C2B9"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Border x:Name="RootBorder" Margin="18" CornerRadius="18"
+            BorderBrush="#E7B8AF" BorderThickness="1.6"
+            Background="#FEF3ED">
+        <Border.Effect>
+            <DropShadowEffect Color="#7A3B33" BlurRadius="30" ShadowDepth="8" Opacity="0.24"/>
+        </Border.Effect>
+
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="58"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="84"/>
+            </Grid.RowDefinitions>
+
+            <!-- ===== 标题栏 ===== -->
+            <Border Grid.Row="0" CornerRadius="17,17,0,0" MouseLeftButtonDown="Header_MouseLeftButtonDown">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                        <GradientStop Color="#F7D9D3" Offset="0"/>
+                        <GradientStop Color="#FAE4DF" Offset="0.55"/>
+                        <GradientStop Color="#F9DCD6" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+                <Grid Margin="20,0,10,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="✿" FontFamily="Segoe UI Symbol" FontSize="21"
+                                   Foreground="#C05A4F" VerticalAlignment="Center"/>
+                        <TextBlock Text="卸载程序" FontSize="16.5" FontWeight="Bold"
+                                   Foreground="#7F423B" Margin="9,0,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <Button Grid.Column="1" Style="{StaticResource CloseButton}" Content="✕"
+                            Click="BtnClose_Click" ToolTip="关闭" VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <!-- ===== 主体 ===== -->
+            <Grid Grid.Row="1" Background="#FEF3ED">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="330"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- 左侧：Q 版插画 -->
+                <Image Grid.Column="0" Source="/mi-Nest;component/Assets/uninstall_art.png"
+                       Stretch="Uniform" HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                       IsHitTestVisible="False"/>
+
+                <!-- 右侧：文案 -->
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="6,10,30,14">
+                    <TextBlock Text="卸载我，" FontFamily="KaiTi" FontSize="27" FontWeight="Bold"
+                               Foreground="#A3564B"/>
+                    <TextBlock Text="晚上别睡得太死" FontFamily="KaiTi" FontSize="31" FontWeight="Bold"
+                               Foreground="#A3564B" Margin="0,-2,0,0"/>
+                    <TextBlock Text="（开玩笑的）……" FontFamily="KaiTi" FontSize="18"
+                               Foreground="#BE837A" Margin="3,16,0,0"/>
+                </StackPanel>
+            </Grid>
+
+            <!-- ===== 底部按钮 ===== -->
+            <Border Grid.Row="2" BorderBrush="#EBD0C9" BorderThickness="0,1.2,0,0" Background="#FEF3ED"
+                    CornerRadius="0,0,17,17">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Button Style="{StaticResource GhostButton}" Content="取消" IsCancel="True"
+                            Click="BtnCancel_Click"/>
+                    <Button Style="{StaticResource PrimaryButton}" Margin="68,0,0,0"
+                            Click="BtnUninstall_Click">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="卸载" VerticalAlignment="Center"/>
+                            <TextBlock Text="✿" FontFamily="Segoe UI Symbol" FontSize="18" Margin="10,0,0,0"
+                                       VerticalAlignment="Center" Opacity="0.9"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

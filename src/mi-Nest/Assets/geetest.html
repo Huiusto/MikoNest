@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>安全验证</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background:#1b1d26;
+    color:#e6e8ee;
+    font-family:"Segoe UI","Microsoft YaHei",sans-serif;
+    display:flex; align-items:center; justify-content:center;
+    min-height:100vh; user-select:none;
+  }
+  .box {
+    background:#262936; border-radius:12px;
+    padding:18px 20px 20px; box-shadow:0 8px 30px rgba(0,0,0,.45);
+    text-align:center; min-width:340px;
+  }
+  .title { font-size:16px; font-weight:600; margin-bottom:14px; color:#f2f4f8; }
+  .tip { font-size:12px; color:#9aa0b0; margin-top:12px; line-height:1.5; }
+  .loading { color:#9aa0b0; font-size:13px; padding:30px 0; }
+  #captcha-area { width:100%; display:flex; justify-content:center; min-height:260px; }
+  .err { color:#ff7a85; font-size:13px; padding:24px 0; }
+  .hint { margin-top:8px; font-size:11px; color:#7d8396; }
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="title">请完成如下极验测试</div>
+  <div id="captcha-area"><div class="loading">正在加载验证组件…</div></div>
+  <div class="tip">完成滑块验证后会自动继续登录流程，请勿关闭此窗口。</div>
+</div>
+<script>
+(function () {
+  "use strict";
+  var MAX_SDK_WAIT = 10000;
+  var settled = false;
+  var area = document.getElementById("captcha-area");
+
+  function showErr(msg) {
+    area.innerHTML = '<div class="err">' + msg + '</div>';
+  }
+
+  function loadScript(src, isReady) {
+    return new Promise(function (resolve) {
+      if (isReady()) { resolve(true); return; }
+      var s = document.createElement("script");
+      s.src = src; s.async = true;
+      var done = false;
+      var timer = setTimeout(function () { finish(false); }, MAX_SDK_WAIT);
+      function finish(ok) {
+        if (done) return; done = true;
+        clearTimeout(timer);
+        s.onload = null; s.onerror = null;
+        if (!ok && s.parentNode) s.parentNode.removeChild(s);
+        resolve(ok);
+      }
+      s.onload = function () { finish(isReady()); };
+      s.onerror = function () { finish(false); };
+      document.head.appendChild(s);
+    });
+  }
+
+  function post(msg) {
+    try {
+      if (window.chrome && window.chrome.webview) {
+        window.chrome.webview.postMessage(msg);
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  // 由宿主注入：window.hoYoNestInit({session_id, data})，data 为极验初始化参数 JSON 字符串
+  window.hoYoNestInit = function (params) {
+    if (!params || !params.session_id || !params.data) {
+      showErr("验证参数缺失，请关闭后重试");
+      post("__error__");
+      return;
+    }
+    var props;
+    try { props = JSON.parse(params.data); }
+    catch (e) { showErr("验证参数解析失败"); post("__error__"); return; }
+
+    var isV4 = props && (props.risk_type || props.captcha_id) && !("challenge" in props);
+
+    loadScript(
+      isV4 ? "https://static.geetest.com/v4/gt4.js" : "https://static.geetest.com/static/js/gt.0.4.9.js",
+      function () { return isV4 ? (typeof window.initGeetest4 === "function") : (typeof window.initGeetest === "function"); }
+    ).then(function (ok) {
+      if (!ok) { showErr("验证组件加载失败，请检查网络后重试"); post("__error__"); return; }
+      try {
+        if (isV4) {
+          window.initGeetest4({
+            captchaId: props.captcha_id || props.gt,
+            riskType: props.risk_type,
+            product: "popup",
+            lang: "zho",
+            userInfo: JSON.stringify({ session_id: params.session_id }),
+            https: true, protocol: "https"
+          }, function (captchaObj) {
+            captchaObj.appendTo("#captcha-area");
+            captchaObj.onSuccess(function () {
+              var v = captchaObj.getValidate();
+              if (!v) { post("__error__"); return; }
+              post(JSON.stringify(v));
+            });
+            captchaObj.onClose(function () { post("__closed__"); });
+          });
+        } else {
+          window.initGeetest({
+            gt: props.gt,
+            challenge: props.challenge,
+            offline: false,
+            new_captcha: props.new_captcha === false ? false : true,
+            product: "custom",
+            area: "#captcha-area",
+            width: "300px",
+            https: true
+          }, function (captchaObj) {
+            captchaObj.appendTo("#captcha-area");
+            captchaObj.onReady(function () { settled = true; });
+            captchaObj.onSuccess(function () {
+              var v = captchaObj.getValidate();
+              if (!v) { post("__error__"); return; }
+              post(JSON.stringify(v));
+            });
+            captchaObj.onClose(function () { post("__closed__"); });
+          });
+        }
+      } catch (e) {
+        showErr("验证组件初始化失败：" + e.message);
+        post("__error__");
+      }
+    });
+  };
+})();
+</script>
+</body>
+</html>

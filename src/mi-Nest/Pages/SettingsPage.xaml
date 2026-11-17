@@ -1,0 +1,291 @@
+﻿<UserControl x:Class="MiNest.Pages.SettingsPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid Margin="26,22,26,20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="设置" FontSize="20" FontWeight="Bold"
+                       Foreground="{DynamicResource TextPrimary}"/>
+            <Button Grid.Column="1" Content="开发者首页（支持、讨论、问题反馈）" Padding="14,7"
+                    VerticalAlignment="Center" Style="{StaticResource AccentButton}"
+                    Click="BtnDevHome_Click"/>
+        </Grid>
+
+        <ScrollViewer Grid.Row="1" Margin="0,16,0,0" VerticalScrollBarVisibility="Auto">
+            <StackPanel MaxWidth="1180" HorizontalAlignment="Left">
+
+                <!-- 界面配色 + 更新/卸载 -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource CardBorder}"
+                            BorderThickness="1" CornerRadius="12" Padding="18" Effect="{DynamicResource CardShadow}">
+                        <StackPanel>
+                            <TextBlock Text="界面配色" Style="{StaticResource SectionTitle}"/>
+                            <WrapPanel x:Name="ThemePanel"/>
+                            <TextBlock Text="主题仅调整应用界面配色；网页内容（米游社等）保持原站风格。"
+                                       FontSize="11.5" Foreground="{DynamicResource TextSecondary}"
+                                       Margin="0,10,0,0" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+                    <StackPanel Grid.Column="1" Margin="12,44,0,0" VerticalAlignment="Top">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
+                                    Margin="0,0,0,12" ToolTip="控制左侧「账号」按钮是否显示">
+                            <TextBlock Text="账号" FontSize="12.5" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextSecondary}"/>
+                            <ToggleButton x:Name="TglAccountNav" Margin="8,0,0,0"
+                                          Style="{StaticResource SwitchToggle}"
+                                          Checked="AccountNav_Changed" Unchecked="AccountNav_Changed"/>
+                        </StackPanel>
+                        <Button Content="更新" Width="128" Padding="14,9" Style="{StaticResource AccentButton}"
+                                Click="BtnUpdate_Click"/>
+                        <Button Content="卸载" Width="128" Padding="14,9" Margin="0,10,0,0"
+                                Style="{StaticResource DangerButton}" Click="BtnUninstall_Click"/>
+                    </StackPanel>
+                </Grid>
+
+                <!-- 管理项目栏 + 通用设置（同一栏两列） -->
+                <Grid Margin="0,18,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- 左：管理项目栏 -->
+                    <Border Grid.Column="0" Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource CardBorder}"
+                            BorderThickness="1" CornerRadius="12" Padding="18" Margin="0,0,10,0" Effect="{DynamicResource CardShadow}">
+                        <StackPanel>
+                            <TextBlock Text="管理项目栏" Style="{StaticResource SectionTitle}"/>
+                            <TextBlock Text="调整左侧导航从上到下的顺序；📌 固定项来自「米哈游相关」页面，点击右侧 ✕ 可移除。"
+                                       FontSize="11.5" Foreground="{DynamicResource TextSecondary}"
+                                       Margin="0,6,0,0" TextWrapping="Wrap"/>
+                            <StackPanel x:Name="NavManagerPanel" Margin="0,12,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 右：通用设置 -->
+                    <Border Grid.Column="1" Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource CardBorder}"
+                            BorderThickness="1" CornerRadius="12" Padding="18" Margin="10,0,0,0" Effect="{DynamicResource CardShadow}">
+                        <StackPanel>
+                            <TextBlock Text="通用设置" Style="{StaticResource SectionTitle}"/>
+
+                            <TextBlock Text="启动设置" FontSize="13.5" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimary}" Margin="0,14,0,0"/>
+                            <CheckBox x:Name="ChkAutoStart" Content="开机自动运行 mi-Nest"
+                                      Margin="0,8,0,0" FontSize="13"
+                                      Foreground="{DynamicResource TextPrimary}"
+                                      Checked="ChkAutoStart_Changed" Unchecked="ChkAutoStart_Changed"/>
+                            <TextBlock Text="开启后，登录 Windows 时将自动在后台启动本启动器。"
+                                       FontSize="11.5" Foreground="{DynamicResource TextSecondary}"
+                                       Margin="0,4,0,0" TextWrapping="Wrap"/>
+                            <CheckBox x:Name="ChkBringFront" Content="退出游戏后自动弹出启动器主界面"
+                                      Margin="0,12,0,0" FontSize="13"
+                                      Foreground="{DynamicResource TextPrimary}"
+                                      Checked="ChkBringFront_Changed" Unchecked="ChkBringFront_Changed"/>
+                            <TextBlock Text="开启后，检测到米哈游游戏（原神 / 星穹铁道 / 绝区零 / 崩坏3）退出时，自动把本启动器弹出到前台并回到「启动」页。"
+                                       FontSize="11.5" Foreground="{DynamicResource TextSecondary}"
+                                       Margin="0,4,0,0" TextWrapping="Wrap"/>
+
+                            <TextBlock Text="关闭设置" FontSize="13.5" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimary}" Margin="0,18,0,0"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                <RadioButton x:Name="RdoCloseTray" GroupName="closeBehavior"
+                                             Content="最小化到系统托盘" FontSize="13"
+                                             Foreground="{DynamicResource TextPrimary}"
+                                             Margin="0,0,28,0"
+                                             Checked="CloseBehavior_Changed"/>
+                                <RadioButton x:Name="RdoCloseExit" GroupName="closeBehavior"
+                                             Content="退出启动器" FontSize="13"
+                                             Foreground="{DynamicResource TextPrimary}"
+                                             Checked="CloseBehavior_Changed"/>
+                            </StackPanel>
+                            <TextBlock Text="点击窗口右上角关闭按钮（×）时：最小化到系统托盘会在后台继续运行，双击托盘图标可恢复；退出启动器则直接结束进程。"
+                                       FontSize="11.5" Foreground="{DynamicResource TextSecondary}"
+                                       Margin="0,6,0,0" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <!-- 账号管理已移至左侧导航栏「账号」独立页面 -->
+
+                <Grid Margin="0,18,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- 应用信息 -->
+                    <Border Grid.Column="0" Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource CardBorder}"
+                            BorderThickness="1" CornerRadius="12" Padding="18" Margin="0,0,10,0" Effect="{DynamicResource CardShadow}">
+                        <StackPanel>
+                            <TextBlock Text="应用信息" Style="{StaticResource SectionTitle}"/>
+                            <TextBlock Text="以下是本应用的版本与数据存储信息。"
+                                       FontSize="11.5" Foreground="{DynamicResource TextSecondary}"
+                                       Margin="0,6,0,0" TextWrapping="Wrap"/>
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="90"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Text="名称" Foreground="{DynamicResource TextSecondary}" Margin="0,4"/>
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="mi-Nest（米哈游 PC 多功能桌面客户端）"
+                                           Foreground="{DynamicResource TextPrimary}" Margin="0,4" TextWrapping="Wrap"/>
+                                <TextBlock Grid.Row="1" Text="版本" Foreground="{DynamicResource TextSecondary}" Margin="0,4"/>
+                                <TextBlock x:Name="TxtVersion" Grid.Row="1" Grid.Column="1"
+                                           Foreground="{DynamicResource TextPrimary}" Margin="0,4"/>
+                                <TextBlock Grid.Row="2" Text="框架" Foreground="{DynamicResource TextSecondary}" Margin="0,4"/>
+                                <TextBlock Grid.Row="2" Grid.Column="1"
+                                           Text=".NET 9 · WPF · WebView2（Windows 10/11）"
+                                           Foreground="{DynamicResource TextPrimary}" Margin="0,4" TextWrapping="Wrap"/>
+                                <TextBlock Grid.Row="3" Text="数据目录" Foreground="{DynamicResource TextSecondary}" Margin="0,4"/>
+                                <TextBlock x:Name="TxtDataDir" Grid.Row="3" Grid.Column="1" Foreground="{DynamicResource TextPrimary}"
+                                           Margin="0,4" TextWrapping="Wrap" FontSize="12"/>
+                                <TextBlock Grid.Row="4" Grid.Column="1" Text="应用的所有数据（设置、账号登录态、抽卡记录、签到状态等）都保存在此文件夹，建议定期备份；更改数据目录后需重启 mi-Nest 生效，原有数据不会自动迁移。"
+                                           Foreground="{DynamicResource TextSecondary}" FontSize="11.5"
+                                           Margin="0,4,0,0" TextWrapping="Wrap"/>
+                                <Button Grid.Row="5" Grid.Column="1" Content="打开数据目录" HorizontalAlignment="Left"
+                                        Padding="14,6" Margin="0,10,12,0" Click="BtnOpenDataDir_Click"/>
+                                <Button Grid.Row="5" Grid.Column="1" Content="更改数据目录" HorizontalAlignment="Left"
+                                        Padding="14,6" Margin="128,10,0,0" Click="BtnChangeDataDir_Click"/>
+                                <Button Grid.Row="6" Grid.Column="1" Content="📌 实时便笺（米哈游游戏实时状态、体力查询）"
+                                        HorizontalAlignment="Left"
+                                        Padding="14,6" Margin="0,10,0,0" Click="BtnDailyNote_Click"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 右列：关于 -->
+                    <StackPanel Grid.Column="1" Margin="10,0,0,0">
+                        <Border Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource CardBorder}"
+                                BorderThickness="1" CornerRadius="12" Padding="18" Effect="{DynamicResource CardShadow}">
+                            <StackPanel>
+                                <TextBlock Text="关于" Style="{StaticResource SectionTitle}"/>
+                                <TextBlock Text="mi-Nest 是一款开源的米哈游 PC 多功能桌面客户端，把米哈游游戏的启动、社区浏览、抽卡记录、每日任务与签到、官方及第三方站点聚合到一个软件内，所有页面均在应用内打开，无需跳转浏览器。"
+                                           Foreground="{DynamicResource TextSecondary}" FontSize="12.5"
+                                           TextWrapping="Wrap" LineHeight="20"/>
+
+                                <TextBlock Text="开源说明" FontSize="13.5" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimary}" Margin="0,14,0,0"/>
+                                <TextBlock Text="本项目源码完全开源，遵循相关开源协议，欢迎查阅与贡献。"
+                                           Foreground="{DynamicResource TextSecondary}" FontSize="12.5"
+                                           TextWrapping="Wrap" LineHeight="20" Margin="0,6,0,0"/>
+
+                                <TextBlock Text="免责声明" FontSize="13.5" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimary}" Margin="0,14,0,0"/>
+                                <TextBlock Text="本项目为个人开源项目，与米哈游官方无关。任务 / 签到等接口为社区公开接口，官方可能随时调整导致部分功能失效，届时需要更新参数后才能继续使用。此外，本软件聚合了大量第三方工具与站点，它们由各自的开发者独立维护，其任何问题（包括服务可用性、数据安全、使用后果等）均与本软件无关，请在使用前自行了解其用途与风险。请勿滥用接口，注意账号安全。"
+                                           Foreground="{DynamicResource TextSecondary}" FontSize="12.5"
+                                           TextWrapping="Wrap" LineHeight="20" Margin="0,6,0,0"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+
+                <!-- mi-Nest 隐藏设置入口（放到设置页最底部） -->
+                <Border Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource CardBorder}"
+                        BorderThickness="1" CornerRadius="12" Padding="18" Margin="0,18,0,0" Effect="{DynamicResource CardShadow}">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <TextBlock Text="mi-Nest" FontSize="12.5" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextSecondary}"
+                                       VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <Button x:Name="BtnHidden" Content="隐藏设置" Padding="14,6"
+                                    Click="BtnHidden_Click"/>
+                        </StackPanel>
+
+                        <Border x:Name="HiddenPanel" Visibility="Collapsed" Margin="0,14,0,0"
+                                Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource CardBorder}"
+                                BorderThickness="1" CornerRadius="10" Padding="16">
+                            <StackPanel>
+                                <TextBlock Text="请输入访问密码" FontSize="13"
+                                           Foreground="{DynamicResource TextSecondary}"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                    <PasswordBox x:Name="TxtPwd" Width="220" VerticalContentAlignment="Center"
+                                                 AutomationProperties.Name="访问密码"
+                                                 KeyDown="TxtPwd_KeyDown"/>
+                                    <Button Content="进入" Padding="16,5" Margin="10,0,0,0"
+                                            Click="BtnPwdOk_Click"/>
+                                </StackPanel>
+                                <TextBlock x:Name="TxtPwdErr" Foreground="#E0506E" FontSize="12"
+                                           Margin="0,8,0,0" Visibility="Collapsed"/>
+
+                                <StackPanel x:Name="HiddenSettings" Visibility="Collapsed" Margin="0,14,0,0">
+                                    <TextBlock Text="隐藏设置" FontSize="14" FontWeight="Bold"
+                                               Foreground="{DynamicResource TextPrimary}"/>
+                                    <TextBlock Text="可单独控制左侧导航栏的内置项目是否显示（默认全部显示）；「账号」「设置」固定显示。"
+                                               FontSize="11.5" Foreground="{DynamicResource TextSecondary}"
+                                               Margin="0,6,0,0" TextWrapping="Wrap"/>
+                                    <TextBlock Text="左侧项目栏显示开关" FontSize="13" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimary}" Margin="0,12,0,0"/>
+                                    <CheckBox x:Name="ChkNavLaunch" Content="显示「启动」"
+                                              Margin="0,8,0,0" FontSize="13"
+                                              Foreground="{DynamicResource TextPrimary}"
+                                              Tag="启动"
+                                              Checked="NavVisibility_Changed" Unchecked="NavVisibility_Changed"/>
+                                    <CheckBox x:Name="ChkNavCommunity" Content="显示「社区」"
+                                              Margin="0,6,0,0" FontSize="13"
+                                              Foreground="{DynamicResource TextPrimary}"
+                                              Tag="社区"
+                                              Checked="NavVisibility_Changed" Unchecked="NavVisibility_Changed"/>
+                                    <CheckBox x:Name="ChkNavGacha" Content="显示「抽卡记录」"
+                                              Margin="0,6,0,0" FontSize="13"
+                                              Foreground="{DynamicResource TextPrimary}"
+                                              Tag="抽卡记录"
+                                              Checked="NavVisibility_Changed" Unchecked="NavVisibility_Changed"/>
+                                    <CheckBox x:Name="ChkNavTask" Content="显示「任务/签到」"
+                                              Margin="0,6,0,0" FontSize="13"
+                                              Foreground="{DynamicResource TextPrimary}"
+                                              Tag="任务/签到"
+                                              Checked="NavVisibility_Changed" Unchecked="NavVisibility_Changed"/>
+                                    <CheckBox x:Name="ChkNavNote" Content="显示「实时便笺」"
+                                              Margin="0,6,0,0" FontSize="13"
+                                              Foreground="{DynamicResource TextPrimary}"
+                                              Tag="实时便笺"
+                                              Checked="NavVisibility_Changed" Unchecked="NavVisibility_Changed"/>
+                                    <CheckBox x:Name="ChkNavLinks" Content="显示「米哈游相关」"
+                                              Margin="0,6,0,0" FontSize="13"
+                                              Foreground="{DynamicResource TextPrimary}"
+                                              Tag="米哈游相关"
+                                              Checked="NavVisibility_Changed" Unchecked="NavVisibility_Changed"/>
+
+                                    <TextBlock Text="界面配色（胡桃）" FontSize="13" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimary}" Margin="0,18,0,0"/>
+                                    <CheckBox x:Name="ChkHutaoTheme" Content="胡桃红 · 暖奶油底 + 胡桃红强调色"
+                                              Margin="0,8,0,0" FontSize="13"
+                                              Foreground="{DynamicResource TextPrimary}"
+                                              Checked="HutaoTheme_Changed" Unchecked="HutaoTheme_Changed"/>
+                                    <CheckBox x:Name="ChkHutaoBackdrop" Content="胡桃风格背景 · 用胡桃主题插画作为应用背景"
+                                              Margin="0,8,0,0" FontSize="13"
+                                              Foreground="{DynamicResource TextPrimary}"
+                                              Checked="HutaoBackdrop_Changed" Unchecked="HutaoBackdrop_Changed"/>
+                                    <TextBlock Text="两项可同时开启：背景插画铺在内容区底层，卡片与文字保持可读；关闭「胡桃红」会恢复为白色配色。"
+                                               FontSize="11.5" Foreground="{DynamicResource TextSecondary}"
+                                               Margin="0,6,0,0" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>
