@@ -115,7 +115,7 @@
                 <!-- 右下角：获取游戏 / 开始游戏 / 定位游戏 -->
                 <StackPanel HorizontalAlignment="Right" VerticalAlignment="Bottom">
                     <Button x:Name="BtnMain" Style="{StaticResource AccentButton}" Content="获取游戏"
-                            FontSize="16" FontWeight="SemiBold" Padding="46,13"
+                            FontSize="16" FontWeight="SemiBold" Padding="46,13" MinWidth="174"
                             HorizontalAlignment="Right" Click="BtnMain_Click"/>
                     <Button x:Name="BtnRelocate" Content="定位游戏" FontSize="11.5" Padding="14,5"
                             Margin="0,10,0,0" HorizontalAlignment="Right"

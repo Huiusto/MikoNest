@@ -258,7 +258,7 @@ public partial class LaunchPage : UserControl
         }
     }
 
-    private void BtnMain_Click(object sender, RoutedEventArgs e)
+    private async void BtnMain_Click(object sender, RoutedEventArgs e)
     {
         var g = GameLocator.Get(_selectedKey);
         _locatedDir = ResolveDir();
@@ -266,6 +266,9 @@ public partial class LaunchPage : UserControl
 
         if (exe != null)
         {
+            BtnMain.IsEnabled = false;
+            BtnMain.Content = "游戏启动中";
+
             try
             {
                 Process.Start(new ProcessStartInfo(exe)
@@ -276,8 +279,19 @@ public partial class LaunchPage : UserControl
             }
             catch (Exception ex)
             {
+                BtnMain.Content = "开始游戏";
+                BtnMain.IsEnabled = true;
                 MessageBox.Show($"启动失败：{ex.Message}", "mi-Nest", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
             }
+
+            // 启动 1 秒后把窗口最小化，交给游戏前台运行
+            await Task.Delay(1000);
+            var win = Window.GetWindow(this);
+            if (win != null) win.WindowState = WindowState.Minimized;
+
+            BtnMain.Content = "开始游戏";
+            BtnMain.IsEnabled = true;
             return;
         }
 
