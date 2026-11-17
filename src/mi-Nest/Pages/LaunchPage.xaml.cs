@@ -23,7 +23,7 @@ public partial class LaunchPage : UserControl
     private readonly MainWindow _main;
     private string _selectedKey;
     private string? _locatedDir;
-    private bool _gameRunning;
+    private readonly HashSet<string> _runningGames = new();   // 正在运行的游戏（按键名分别记录）
     private readonly List<(Button Dot, string Key)> _dots = new();
 
     public LaunchPage(MainWindow main)
@@ -242,9 +242,9 @@ public partial class LaunchPage : UserControl
 
         GameLabel.Text = $"当前游戏：{g.Name}";
 
-        if (_gameRunning)
+        if (_runningGames.Contains(_selectedKey))
         {
-            // 游戏运行中：按钮保持「游戏启动中」，直到游戏进程退出
+            // 该游戏运行中：按钮保持「游戏启动中」，直到这款游戏的进程退出
             BtnMain.Content = "游戏启动中";
             BtnMain.IsEnabled = false;
             LocateHint.Text = _locatedDir != null ? $"已定位：{_locatedDir}" : LocateHint.Text;
@@ -276,7 +276,8 @@ public partial class LaunchPage : UserControl
 
         if (exe != null)
         {
-            _gameRunning = true;
+            var key = _selectedKey;   // 记录本次启动的是哪款游戏
+            _runningGames.Add(key);
             BtnMain.Content = "游戏启动中";
             BtnMain.IsEnabled = false;
 
@@ -304,7 +305,7 @@ public partial class LaunchPage : UserControl
                 }
                 catch (Exception ex)
                 {
-                    RestoreLaunchState();
+                    RestoreLaunchState(key);
                     MessageBox.Show($"启动失败：{ex.Message}", "mi-Nest", MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
@@ -325,7 +326,7 @@ public partial class LaunchPage : UserControl
             {
                 // 进程不可跟踪时不再阻塞按钮
             }
-            RestoreLaunchState();
+            RestoreLaunchState(key);
             return;
         }
 
@@ -356,10 +357,12 @@ public partial class LaunchPage : UserControl
         return null;
     }
 
-    /// <summary>游戏结束（或启动失败）后按钮恢复为「开始游戏」</summary>
-    private void RestoreLaunchState()
+    /// <summary>指定游戏结束（或启动失败）后，仅恢复该游戏的按钮状态</summary>
+    private void RestoreLaunchState(string key)
     {
-        _gameRunning = false;
+        _runningGames.Remove(key);
+        if (key != _selectedKey) return;   // 已切到别的游戏，当前页面不受影响
+
         BtnMain.Content = "开始游戏";
         BtnMain.IsEnabled = true;
         RefreshState();
