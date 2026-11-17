@@ -251,6 +251,9 @@ public partial class LaunchPage : UserControl
             return;
         }
 
+        // 当前游戏没在运行：按钮恢复可点击（切到其它游戏时不能继承上一款游戏的置灰）
+        BtnMain.IsEnabled = true;
+
         if (exe != null)
         {
             BtnMain.Content = "开始游戏";
