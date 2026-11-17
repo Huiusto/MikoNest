@@ -14,9 +14,14 @@
             </Grid.ColumnDefinitions>
             <TextBlock Text="设置" FontSize="20" FontWeight="Bold"
                        Foreground="{DynamicResource TextPrimary}"/>
-            <Button Grid.Column="1" Content="开发者首页（支持、讨论、问题反馈）" Padding="14,7"
-                    VerticalAlignment="Center" Style="{StaticResource AccentButton}"
-                    Click="BtnDevHome_Click"/>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button Content="访问项目主页 (GitHub)" Padding="14,7" Margin="0,0,10,0"
+                        Style="{StaticResource AccentButton}"
+                        Click="BtnRepoHome_Click"/>
+                <Button Content="开发者首页（支持、讨论、问题反馈）" Padding="14,7"
+                        Style="{StaticResource AccentButton}"
+                        Click="BtnDevHome_Click"/>
+            </StackPanel>
         </Grid>
 
         <ScrollViewer Grid.Row="1" Margin="0,16,0,0" VerticalScrollBarVisibility="Auto">

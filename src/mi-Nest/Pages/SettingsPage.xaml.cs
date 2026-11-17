@@ -262,6 +262,12 @@ public partial class SettingsPage : UserControl
         _main.OpenInApp("https://www.miyoushe.com/dby/accountCenter/postList?id=310621322");
     }
 
+    private void BtnRepoHome_Click(object sender, RoutedEventArgs e)
+    {
+        if (_main == null) return;
+        _main.OpenInApp("https://github.com/Huiusto/mi-Nest");
+    }
+
     private void BtnUpdate_Click(object sender, RoutedEventArgs e)
     {
         var ver = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.1.5";
