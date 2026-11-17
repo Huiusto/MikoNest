@@ -1,4 +1,8 @@
-﻿# mi-Nest
+﻿<p align="center">
+  <img src="docs/icon.png" alt="mi-Nest 图标" width="128" height="128">
+</p>
+
+# mi-Nest
 
 > 米哈游 PC 多功能桌面客户端（开源）· 基于 WPF + WebView2 · 支持 Visual Studio 2022 / .NET 9
 
