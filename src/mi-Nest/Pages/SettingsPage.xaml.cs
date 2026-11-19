@@ -377,7 +377,8 @@ public partial class SettingsPage : UserControl
             var sizeText = info.AssetSize > 0 ? $"（{info.AssetSize / 1024d / 1024d:F1} MB）" : "";
             var ok = MessageBox.Show($"发现新版本 v{info.Version}（当前 v{current.ToString(3)}）。\n\n" +
                                      $"安装包：{info.AssetName} {sizeText}\n\n" +
-                                     "点击「确定」开始下载，下载完成后会自动安装并重启软件。",
+                                     "点击「确定」开始下载，下载完成后会自动安装并重启软件。\n" +
+                                     "（安装时会弹出 Windows 授权窗口，请点「是」）",
                 "发现新版本", MessageBoxButton.OKCancel, MessageBoxImage.Question);
             if (ok != MessageBoxResult.OK) return;
 
