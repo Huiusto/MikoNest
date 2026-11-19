@@ -62,30 +62,30 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <Border Grid.Column="0" Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource CardBorder}"
-                            BorderThickness="1" CornerRadius="12" Padding="18" Effect="{DynamicResource CardShadow}">
+                            BorderThickness="1" CornerRadius="12" Padding="18,14" Effect="{DynamicResource CardShadow}">
                         <StackPanel>
                             <TextBlock Text="界面配色" Style="{StaticResource SectionTitle}"/>
                             <WrapPanel x:Name="ThemePanel"/>
                             <TextBlock Text="主题仅调整应用界面配色；网页内容（米游社等）保持原站风格。"
                                        FontSize="11.5" Foreground="{DynamicResource TextSecondary}"
-                                       Margin="0,10,0,0" TextWrapping="Wrap"/>
+                                       Margin="0,6,0,0" TextWrapping="Wrap"/>
                         </StackPanel>
                     </Border>
-                    <StackPanel Grid.Column="1" Margin="12,44,0,0" VerticalAlignment="Top">
+                    <StackPanel Grid.Column="1" Margin="12,12,0,0" VerticalAlignment="Top">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
-                                    Margin="0,0,0,12" ToolTip="控制左侧「账号」按钮是否显示">
-                            <TextBlock Text="账号" FontSize="12.5" VerticalAlignment="Center"
+                                    Margin="0,0,0,6" ToolTip="控制左侧「账号」按钮是否显示">
+                            <TextBlock Text="账号" FontSize="12" VerticalAlignment="Center"
                                        Foreground="{DynamicResource TextSecondary}"/>
                             <ToggleButton x:Name="TglAccountNav" Margin="8,0,0,0"
                                           Style="{StaticResource SwitchToggle}"
                                           Checked="AccountNav_Changed" Unchecked="AccountNav_Changed"/>
                         </StackPanel>
-                        <Button x:Name="BtnUpdate" Content="更新" Width="128" Padding="14,9" Style="{StaticResource AccentButton}"
+                        <Button x:Name="BtnUpdate" Content="更新" Width="128" Padding="12,6" Style="{StaticResource AccentButton}"
                                 Click="BtnUpdate_Click"/>
-                        <TextBlock x:Name="TxtUpdateHint" Width="128" Margin="0,8,0,0" FontSize="11"
+                        <TextBlock x:Name="TxtUpdateHint" Width="128" Margin="0,4,0,0" FontSize="11"
                                    TextAlignment="Center" TextWrapping="Wrap"
                                    Foreground="{DynamicResource TextSecondary}"/>
-                        <Button Content="卸载" Width="128" Padding="14,9" Margin="0,10,0,0"
+                        <Button Content="卸载" Width="128" Padding="12,6" Margin="0,6,0,0"
                                 Style="{StaticResource DangerButton}" Click="BtnUninstall_Click"/>
                     </StackPanel>
                 </Grid>
@@ -221,7 +221,7 @@
 
                                 <TextBlock Text="开源说明" FontSize="13.5" FontWeight="SemiBold"
                                            Foreground="{DynamicResource TextPrimary}" Margin="0,14,0,0"/>
-                                <TextBlock Text="本项目源码完全开源，欢迎查阅与贡献。参考了 Starward（Scighost，MIT）与 TeyvatGuide（BTMuli，MIT）的开源实现，包括首页动态壁纸、祈愿/跃迁记录、预下载与任务签到等思路，均在本项目内重新编写。"
+                                <TextBlock Text="源码完全开源，欢迎查阅与贡献。参考了 Starward（Scighost，MIT）与 TeyvatGuide（BTMuli，MIT）的实现思路，代码均在本项目内自行编写。"
                                            Foreground="{DynamicResource TextSecondary}" FontSize="12.5"
                                            TextWrapping="Wrap" LineHeight="20" Margin="0,6,0,0"/>
 

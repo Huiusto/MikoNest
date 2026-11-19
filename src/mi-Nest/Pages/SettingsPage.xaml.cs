@@ -29,7 +29,7 @@ public partial class SettingsPage : UserControl
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         BuildThemePicker();
-        TxtVersion.Text = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.1.9";
+        TxtVersion.Text = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.1.10";
         TxtDataDir.Text = AppPaths.DataDir;
         // 初始化同步设置值时不触发写入事件（避免误存）
         _navInit = true;
@@ -599,5 +599,6 @@ public partial class SettingsPage : UserControl
         _main?.ApplyCloseBehavior();
     }
 }
+
 
 
