@@ -83,7 +83,7 @@
                         <Button x:Name="BtnUpdate" Content="更新" Width="128" Padding="12,6" Style="{StaticResource AccentButton}"
                                 Click="BtnUpdate_Click"/>
                         <TextBlock x:Name="TxtUpdateHint" Width="128" Margin="0,4,0,0" FontSize="11"
-                                   TextAlignment="Center" TextWrapping="Wrap"
+                                   TextAlignment="Center" TextWrapping="Wrap" Visibility="Collapsed"
                                    Foreground="{DynamicResource TextSecondary}"/>
                         <Button Content="卸载" Width="128" Padding="12,6" Margin="0,6,0,0"
                                 Style="{StaticResource DangerButton}" Click="BtnUninstall_Click"/>

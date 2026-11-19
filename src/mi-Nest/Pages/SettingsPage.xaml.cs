@@ -29,7 +29,7 @@ public partial class SettingsPage : UserControl
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         BuildThemePicker();
-        TxtVersion.Text = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.1.10";
+        TxtVersion.Text = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.1.11";
         TxtDataDir.Text = AppPaths.DataDir;
         // 初始化同步设置值时不触发写入事件（避免误存）
         _navInit = true;
@@ -340,14 +340,14 @@ public partial class SettingsPage : UserControl
         var current = Assembly.GetExecutingAssembly().GetName().Version ?? new Version(0, 1, 0, 0);
         BtnUpdate.IsEnabled = false;
         BtnUpdate.Content = "检查中…";
-        TxtUpdateHint.Text = "";
+        SetHint("");
 
         try
         {
             var (info, error) = await UpdateService.GetLatestAsync();
             if (info == null)
             {
-                TxtUpdateHint.Text = "检查失败：" + (error ?? "未知错误");
+                SetHint("检查失败：" + (error ?? "未知错误"));
                 MessageBox.Show("检查更新失败：" + (error ?? "未知错误") +
                                 "\n\n可稍后重试，或直接在 GitHub 的 Release 页手动下载。", "检查更新",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -357,7 +357,7 @@ public partial class SettingsPage : UserControl
             var latest = UpdateService.ParseTag(info.Version);
             if (latest != null && latest <= current)
             {
-                TxtUpdateHint.Text = "已是最新版本";
+                SetHint("已是最新版本");
                 MessageBox.Show($"当前已是最新版本 v{current.ToString(3)}。\n\n" +
                                 $"最新发布：v{info.Version}（{info.ReleasePage}）", "检查更新",
                     MessageBoxButton.OK, MessageBoxImage.Information);
@@ -366,7 +366,7 @@ public partial class SettingsPage : UserControl
 
             if (string.IsNullOrEmpty(info.AssetUrl))
             {
-                TxtUpdateHint.Text = $"发现 v{info.Version}（未附带安装包）";
+                SetHint($"发现 v{info.Version}（未附带安装包）");
                 var r = MessageBox.Show($"发现新版本 v{info.Version}（当前 v{current.ToString(3)}），" +
                                         "但该 Release 没有附带安装包附件。\n\n是否打开下载页手动下载？", "发现新版本",
                     MessageBoxButton.OKCancel, MessageBoxImage.Question);
@@ -391,7 +391,7 @@ public partial class SettingsPage : UserControl
             });
 
             BtnUpdate.Content = "安装中…";
-            TxtUpdateHint.Text = "安装包已下载，正在启动安装程序…";
+            SetHint("安装包已下载，正在启动安装程序…");
             Process.Start(new ProcessStartInfo
             {
                 FileName = path,
@@ -403,7 +403,7 @@ public partial class SettingsPage : UserControl
         }
         catch (Exception ex)
         {
-            TxtUpdateHint.Text = "更新失败：" + ex.Message;
+            SetHint("更新失败：" + ex.Message);
             MessageBox.Show("更新失败：" + ex.Message + "\n\n可在 GitHub 的 Release 页手动下载安装包。", "更新",
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
@@ -434,6 +434,13 @@ public partial class SettingsPage : UserControl
         {
             return "/S";
         }
+    }
+
+    /// <summary>更新提示：有内容才占位，避免「更新」和「卸载」之间出现空白间隙。</summary>
+    private void SetHint(string text)
+    {
+        TxtUpdateHint.Text = text;
+        TxtUpdateHint.Visibility = string.IsNullOrWhiteSpace(text) ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void OpenReleasePage(string url)
@@ -599,6 +606,7 @@ public partial class SettingsPage : UserControl
         _main?.ApplyCloseBehavior();
     }
 }
+
 
 
 
