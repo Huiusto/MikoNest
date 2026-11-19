@@ -17,6 +17,7 @@ public partial class SettingsPage : UserControl
 {
     private readonly MainWindow? _main;
     private bool _navInit;
+    private bool _opacityInit;
 
     public SettingsPage(MainWindow? main = null)
     {
@@ -48,6 +49,20 @@ public partial class SettingsPage : UserControl
         else RdoCloseExit.IsChecked = true;
         _navInit = false;
         RefreshNavManager();
+
+        _opacityInit = true;
+        SldOpacity.Value = Math.Clamp(SettingsService.Settings.CardOpacity, 0, 100);
+        TxtOpacityVal.Text = $"{(int)SldOpacity.Value}%";
+        _opacityInit = false;
+    }
+
+    /// <summary>最上方滑动条：实时调整卡片 / 框框背景不透明度（0-100）</summary>
+    private void Opacity_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_opacityInit || TxtOpacityVal == null) return;
+        var v = (int)Math.Round(e.NewValue);
+        TxtOpacityVal.Text = $"{v}%";
+        ThemeService.SetCardOpacity(v);
     }
 
     /// <summary>设置页内打开实时便笺（原左侧导航项已移入设置）</summary>
@@ -239,6 +254,7 @@ public partial class SettingsPage : UserControl
                 Foreground = (Brush)FindResource("TextPrimary"),
             });
             rb.Content = sp;
+            System.Windows.Automation.AutomationProperties.SetName(rb, ThemeService.ThemeNames[i]);
             ThemePanel.Children.Add(rb);
         }
         RefreshThemeRings();

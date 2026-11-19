@@ -163,10 +163,11 @@ public static class GameLocator
                     var ms = new MemoryStream();
                     fs.CopyTo(ms);
                     var text = Encoding.UTF8.GetString(ms.ToArray());
-                    // 优先完整 webstatic 页面 URL；且必须带抽卡特征（authkey_ver/gacha），防止被非抽卡页面 URL 干扰
+                    // 优先完整 webstatic 页面 URL；且必须带抽卡特征（必须含 gacha），
+                    // 否则会被日常活动页（如 blue-post）的 authkey 链接干扰，拉取必然失败
                     var m = Regex.Match(text,
                         @"https://webstatic\.mihoyo\.com[^\x00-\x20""'\\]{0,1500}");
-                    if (m.Success && (m.Value.Contains("authkey_ver") || m.Value.Contains("gacha_id") || m.Value.Contains("getGachaLog")))
+                    if (m.Success && m.Value.Contains("gacha", StringComparison.OrdinalIgnoreCase))
                     {
                         if (lastWrite > bestTime)
                         {
@@ -181,6 +182,17 @@ public static class GameLocator
                     {
                         bestTime = lastWrite;
                         bestUrl = m.Value;
+                    }
+                    // 再兜底：直接搜含 gacha 的 webstatic 链接（部分缓存里前面会夹带其它 URL）
+                    m = Regex.Match(text,
+                        @"https://webstatic\.mihoyo\.com/[^\x00-\x20""'\\]{0,1500}gacha[^\x00-\x20""'\\]{0,600}");
+                    if (m.Success && m.Value.Contains("authkey"))
+                    {
+                        if (lastWrite > bestTime)
+                        {
+                            bestTime = lastWrite;
+                            bestUrl = m.Value;
+                        }
                     }
                 }
                 catch

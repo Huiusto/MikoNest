@@ -58,6 +58,10 @@ public class AppSettings
     public bool HutaoBackdrop { get; set; }
     /// <summary>隐藏左侧「账号」按钮（设置页「更新」上方的开关控制）</summary>
     public bool HideAccountNav { get; set; }
+    /// <summary>卡片 / 框框背景不透明度（0-100，设置页最上方滑动条控制）</summary>
+    public int CardOpacity { get; set; } = 100;
+    /// <summary>抽卡记录是否显示三星条目（抽卡页「设置」）</summary>
+    public bool GachaShow3Star { get; set; } = true;
 }
 
 /// <summary>固定到左侧导航栏的快捷链接</summary>

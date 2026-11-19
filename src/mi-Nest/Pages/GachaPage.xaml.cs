@@ -1,37 +1,49 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Media;
+using Microsoft.Win32;
 using MiNest.Models;
 using MiNest.Services;
 
 namespace MiNest.Pages;
 
-/// <summary>
-/// 抽卡记录（学习 HoYo.Gacha）：本地持久化库 + 多账号/多游戏管理 + UIGF/SRGF/CSV 导入导出 + 统计卡片 + 卡池筛选。
-/// 拉取 / 导入的记录都会合并进本地库（gacha_records.json），重启不丢失。
-/// </summary>
+/// <summary>抽卡记录：按卡池分列（Starward 祈愿记录 / 跃迁记录 / 调频记录同款口径）</summary>
 public partial class GachaPage : UserControl
 {
-    private readonly List<GachaItem> _items = new();
+    private static readonly string[] GameKeys = { "genshin", "starrail", "zzz", "bh3" };
+    private static readonly string[] GameLabels = { "原神", "星穹铁道", "绝区零", "崩坏3" };
+
+    private readonly List<ColumnUi> _columns = new();
+    private bool _loading;
     private string _gameKey = "genshin";
-    private string? _baseUrl;
-    private bool _subscribed;
 
-    private static readonly string[] PoolFilters = { "全部", "角色", "武器", "常驻", "新手", "其他" };
-
-    // 抽卡记录仅支持这四款游戏（UIGF 通用）
-    private static readonly Dictionary<string, string> GameBiz = new()
+    private sealed class RowVm
     {
-        ["genshin"] = "hk4e_cn",
-        ["starrail"] = "hkrpg_cn",
-        ["zzz"] = "nap_cn",
-        ["bh3"] = "bh3_cn",
-    };
+        public GachaItem Item = new();
+        public int Pity;
+    }
+
+    private sealed class ColumnUi
+    {
+        public GachaPoolDef Pool = new("", "");
+        public bool ShowFive = true;
+        public Border Root = new();
+        public StackPanel ListPanel = new();
+        public Button TabFive = new();
+        public Button TabFour = new();
+        public Border Card = new();
+        public List<RowVm> FiveRows = new();
+        public List<RowVm> FourRows = new();
+        public int Total;
+        public int Pending;
+        public TextBlock EmptyHint = new();
+    }
 
     public GachaPage()
     {
@@ -41,468 +53,814 @@ public partial class GachaPage : UserControl
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        ComboGame.ItemsSource = GameLocator.Games.Select(g => g.Name).ToList();
-        ComboGame.SelectedIndex = 0;
-        ComboPool.ItemsSource = PoolFilters;
-        ComboPool.SelectedIndex = 0;
-        RefreshUidList();
-        if (!_subscribed)
+        if (ComboGame.Items.Count == 0)
         {
-            _subscribed = true;
-            AccountService.Changed += () => Dispatcher.Invoke(async () => await RefreshBoundGamesAsync());
+            _loading = true;
+            foreach (var label in GameLabels) ComboGame.Items.Add(label);
+            ComboGame.SelectedIndex = 0;
+            _loading = false;
         }
-        _ = RefreshBoundGamesAsync();
-        TxtStatus.Text = "提示：可先登录游戏并在游戏内打开一次「抽卡记录」页面后点「自动获取」；也可登录米游社账号后点「从登录账号获取」。拉取/导入的记录会持久化到本地库，重启不丢失。";
+        ChkShow4.IsChecked = true;
+        ChkShowIcon.IsChecked = true;
+        TxtSettingsInfo.Text = $"数据目录：{AppPaths.DataDir}";
+        RefreshAll();
     }
 
-    /// <summary>UID 下拉：全部 + 本地库该游戏下所有 UID</summary>
-    private void RefreshUidList()
-    {
-        var prev = ComboUid.SelectedItem as string;
-        var uids = GachaStore.GetUids(_gameKey);
-        var list = new List<string> { "全部" };
-        list.AddRange(uids);
-        ComboUid.ItemsSource = list;
-        ComboUid.SelectedIndex = Math.Max(0, list.IndexOf(prev ?? "全部"));
-    }
+    // ================= 顶部筛选 =================
 
-    /// <summary>按当前筛选（游戏 + UID + 卡池）从本地库载入并刷新列表/统计</summary>
-    private void ReloadFromStore(bool resetStatus = true)
+    private void ComboGame_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        var uid = ComboUid.SelectedItem as string;
-        var uidFilter = string.IsNullOrEmpty(uid) || uid == "全部" ? null : uid;
-        var all = GachaStore.Query(uidFilter, _gameKey);
-        _items.Clear();
-        _items.AddRange(all);
-        TxtLocalTotal.Text = $"{GachaStore.Query(null, _gameKey).Count} 条";
-        ApplyFilter();
-        if (all.Count == 0 && resetStatus)
-            TxtStatus.Text = "本地库暂无记录。点「自动获取」或「从登录账号获取」拉取，或「导入 UIGF/SRGF」导入已有记录。";
+        if (_loading) return;
+        var idx = Math.Max(0, ComboGame.SelectedIndex);
+        _gameKey = GameKeys[idx];
+        TxtTitle.Text = _gameKey switch
+        {
+            "genshin" => "祈愿记录",
+            "starrail" => "跃迁记录",
+            "zzz" => "调频记录",
+            _ => "补给记录",
+        };
+        RefreshAll();
     }
 
     private void ComboUid_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (ComboUid.SelectedIndex < 0) return;
-        ReloadFromStore();
+        if (_loading) return;
+        RefreshBanners();
     }
 
-    /// <summary>登录账号后自动识别该账号绑定的米哈游游戏</summary>
-    private async Task RefreshBoundGamesAsync()
+    private void RefreshAll()
     {
-        var acc = AccountService.Active;
-        if (acc == null)
+        RefreshUidCombo();
+        RefreshBanners();
+    }
+
+    private string? SelectedUid
+    {
+        get
         {
-            TxtStatus.Text = "未登录米游社账号。登录后此处会自动识别该账号绑定的游戏，可点「从登录账号获取」直接拉取抽卡记录。";
-            BtnFromAccount.IsEnabled = false;
-            return;
+            var v = ComboUid.SelectedItem as string;
+            if (string.IsNullOrEmpty(v) || v.StartsWith("全部")) return null;
+            return v;
         }
+    }
 
-        // 缺 stoken 时角色/签到接口一律返回登录失效，提前给出明确引导
-        if (!acc.Cookie.Contains("stoken", StringComparison.OrdinalIgnoreCase))
+    private void RefreshUidCombo()
+    {
+        var uids = GachaStore.GetUids(_gameKey);
+        _loading = true;
+        var keep = SelectedUid;
+        ComboUid.Items.Clear();
+        if (uids.Count == 0)
         {
-            BtnFromAccount.IsEnabled = false;
-            TxtStatus.Text = $"已登录：{acc.DisplayName}，但登录态缺少 stoken（角色识别 / 抽卡 / 签到接口必需）。" +
-                             "请到「账号」页用「扫码登录」或「Cookie 登录」重新登录后，此功能自动恢复。";
-            return;
+            ComboUid.Items.Add("全部");
+            ComboUid.SelectedIndex = 0;
         }
-
-        var bound = new List<string>();
-        foreach (var g in GameLocator.Games)
-        {
-            if (!GameBiz.ContainsKey(g.Key)) continue;
-            var (roles, _) = await SignService.GetRolesAsync(acc.Cookie, GameBiz[g.Key]);
-            if (roles.Count > 0) bound.Add(g.Name);
-        }
-
-        var idx = bound.Count > 0
-            ? Math.Max(0, GameLocator.Games.ToList().FindIndex(x => bound.Contains(x.Name)))
-            : ComboGame.SelectedIndex;
-        if (idx >= 0 && idx < ComboGame.Items.Count)
-            ComboGame.SelectedIndex = idx;
-
-        BtnFromAccount.IsEnabled = true;
-        if (bound.Count == 0)
-            TxtStatus.Text = $"已登录：{acc.DisplayName}。该账号暂未绑定任何可查询的米哈游游戏角色。";
         else
-            TxtStatus.Text = $"已登录：{acc.DisplayName}。识别到绑定游戏：{string.Join("、", bound)}，可点「从登录账号获取」直接拉取。";
+        {
+            ComboUid.Items.Add("全部 UID");
+            foreach (var u in uids) ComboUid.Items.Add(u);
+            var idx = keep != null ? uids.IndexOf(keep) + 1 : 1;
+            ComboUid.SelectedIndex = Math.Clamp(idx, 0, uids.Count);
+        }
+        _loading = false;
     }
 
-    private async void BtnFromAccount_Click(object sender, RoutedEventArgs e)
+    private void RefreshBanners()
     {
-        var acc = AccountService.Active;
-        if (acc == null)
+        var uid = SelectedUid;
+        var all = GachaStore.Query(uid, _gameKey);
+        var last = all.Count > 0 ? all.Max(x => x.Time) : null;
+        TxtSubtitle.Text = $"本地库 {all.Count} 条" + (last != null ? $" · 最近更新 {last}" : "");
+        if (all.Count == 0)
+            TxtStatus.Text = "本地库还是空的：先在游戏内打开一次「抽卡记录」页面，再回来点「更新记录」；也可以从「▾ → 导入 UIGF / SRGF 文件」导入已有记录。";
+
+        BannerPanel.Children.Clear();
+        _columns.Clear();
+
+        var pools = GachaService.Pools.TryGetValue(_gameKey, out var p)
+            ? p
+            : new[] { new GachaPoolDef("", "卡池") };
+
+        foreach (var pool in pools)
         {
-            TxtStatus.Text = "未登录米游社账号，请先到「账号」页登录。";
-            return;
-        }
-        if (!GameBiz.TryGetValue(_gameKey, out var biz))
-        {
-            TxtStatus.Text = "该游戏暂不支持账号直连获取。";
-            return;
-        }
-        if (!acc.Cookie.Contains("stoken", StringComparison.OrdinalIgnoreCase))
-        {
-            TxtStatus.Text = "当前账号登录态缺少 stoken，抽卡接口无法使用。请到「账号」页用「扫码登录 / Cookie 登录」重新登录。";
-            return;
+            var items = all.Where(x => x.GachaType == pool.Code).ToList();
+            // 新手池只有真的有记录时才显示，避免一排空列
+            if (pool.Code is "100" or "2" && items.Count == 0) continue;
+            var col = BuildColumn(pool, items);
+            _columns.Add(col);
+            BannerPanel.Children.Add(col.Root);
         }
 
-        var (roles, err) = await SignService.GetRolesAsync(acc.Cookie, biz);
-        if (err != null)
-        {
-            TxtStatus.Text = $"获取角色失败：{err}";
-            return;
-        }
-        if (roles.Count == 0)
-        {
-            TxtStatus.Text = $"当前账号在「{GameLocator.Get(_gameKey).Name}」下未绑定角色。";
-            return;
-        }
+        ApplyColumnWidth();
+    }
 
-        var role = roles[0];
-        TxtStatus.Text = $"正在为 {role.Nickname}（{role.Uid}）生成 authkey…";
-        try
+    // ================= 列构建 =================
+
+    private static readonly Dictionary<string, string> RankColor = new()
+    {
+        ["5"] = "#D9A24A",
+        ["4"] = "#A47BD0",
+        ["3"] = "#7C93B0",
+    };
+
+    private static readonly Dictionary<string, string> RankSoft = new()
+    {
+        ["5"] = "#26D9A24A",
+        ["4"] = "#1FA47BD0",
+        ["3"] = "#147C93B0",
+    };
+
+    private static Brush Brush(string hex)
+    {
+        var c = (Color)ColorConverter.ConvertFromString(hex);
+        var b = new SolidColorBrush(c);
+        b.Freeze();
+        return b;
+    }
+
+    private ColumnUi BuildColumn(GachaPoolDef pool, List<GachaItem> items)
+    {
+        var col = new ColumnUi { Pool = pool };
+        var accentHex = _gameKey switch
         {
-            var (ok, msg, url) = await GachaService.GenAuthKeyAsync(acc.Cookie, biz, role.Region, role.Uid);
-            if (!ok || url == null)
+            "genshin" => "#56B3D6",
+            "starrail" => "#7C86D9",
+            "zzz" => "#E0A93B",
+            _ => "#C77DDB",
+        };
+
+        var asc = items.OrderBy(x => x.Time).ThenBy(x => x.Id).ToList();
+        var five = new List<RowVm>();
+        var four = new List<RowVm>();
+        var c5 = 0;
+        var c4 = 0;
+        foreach (var it in asc)
+        {
+            c5++;
+            c4++;
+            if (it.RankType == "5")
             {
-                TxtStatus.Text = msg.Contains("-502") || msg.Contains("Something went wrong")
-                    ? "从登录账号获取暂不可用：米哈游对当前网络环境的 genAuthKey 接口做了风控（-502）。" +
-                      "请改用「自动获取」：先在游戏内打开一次「抽卡记录」页面（authkey 仅约 5 分钟有效），再回本页点「自动获取」。"
-                    : $"authkey 生成失败：{msg}";
-                return;
+                five.Add(new RowVm { Item = it, Pity = c5 });
+                c5 = 0;
+                c4 = 0;
             }
-            await FetchAsync(url);
+            else if (it.RankType == "4")
+            {
+                four.Add(new RowVm { Item = it, Pity = c4 });
+                c4 = 0;
+            }
         }
-        catch (Exception ex)
+        col.Pending = c5;
+        col.FiveRows = five.OrderByDescending(r => r.Item.Time).ThenByDescending(r => r.Item.Id).ToList();
+        col.FourRows = four.OrderByDescending(r => r.Item.Time).ThenByDescending(r => r.Item.Id).ToList();
+
+        var total = items.Count;
+        col.Total = total;
+        var cFive = items.Count(x => x.RankType == "5");
+        var cFour = items.Count(x => x.RankType == "4");
+        var cThree = items.Count(x => x.RankType == "3");
+        var avgFive = five.Count > 0 ? five.Average(r => r.Pity) : 0d;
+        var start = asc.FirstOrDefault()?.Time;
+        var end = asc.LastOrDefault()?.Time;
+
+        string Pct(int n) => total > 0 ? $"{n * 100.0 / total:0.00}%" : "0.00%";
+        static string Short(string? t)
         {
-            TxtStatus.Text = $"获取失败：{ex.Message}";
+            if (string.IsNullOrEmpty(t)) return "—";
+            var s = t.Replace('-', '/');
+            return s.Length >= 16 ? s[..16] : s;
         }
-    }
 
-    private void ComboGame_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (ComboGame.SelectedIndex < 0) return;
-        _gameKey = GameLocator.Games[ComboGame.SelectedIndex].Key;
-        _baseUrl = null;
-        RefreshUidList();
-        ComboPool.SelectedIndex = 0;
-        ReloadFromStore();
-    }
-
-    private void ComboPool_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (ComboPool.SelectedIndex < 0) return;
-        ApplyFilter();
-    }
-
-    /// <summary>按卡池分类筛选并刷新列表/统计</summary>
-    private void ApplyFilter()
-    {
-        var filter = ComboPool.SelectedItem as string ?? "全部";
-        var filtered = filter == "全部"
-            ? _items.ToList()
-            : _items.Where(x => PoolCategory(x) == filter).ToList();
-        Grid.ItemsSource = filtered;
-        UpdateStats(filtered.Count);
-        if (filter != "全部")
-            TxtStatus.Text = $"已筛选：{filter}（{filtered.Count} 条 / 共 {_items.Count} 条）";
-    }
-
-    /// <summary>依据卡池名称判断分类（flyingmouse-format 同款口径）</summary>
-    private string PoolCategory(GachaItem it)
-    {
-        var p = it.PoolName ?? "";
-        if (p.Contains("新手")) return "新手";
-        if (p.Contains("武器") || p.Contains("精准")) return "武器";
-        if (p.Contains("角色") || p.Contains("限定") || p.Contains("UP")) return "角色";
-        if (p.Contains("常驻") || p.Contains("标配")) return "常驻";
-        return "其他";
-    }
-
-    private string? ResolveDir()
-    {
-        var g = GameLocator.Get(_gameKey);
-        if (SettingsService.Settings.GamePaths.TryGetValue(_gameKey, out var p))
+        var root = new Border
         {
-            // 配置路径可能指错游戏（早期版本把原神目录填给了绝区零），校验数据目录
-            if (Directory.Exists(Path.Combine(p, g.DataDir)) ||
-                (g.Key == "genshin" && Directory.Exists(Path.Combine(p, "GenshinImpact_Data"))))
-                return p;
-        }
+            Width = 262,
+            Margin = new Thickness(0, 0, 10, 0),
+            CornerRadius = new CornerRadius(14),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(14, 12, 14, 12),
+        };
+        col.Card = root;
+        root.SetResourceReference(Border.BackgroundProperty, "CardBg");
+        root.SetResourceReference(Border.BorderBrushProperty, "CardBorder");
 
-        var detected = GameLocator.DetectInstallDir(g);
-        if (detected != null)
+        var grid = new Grid();
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+
+        // 顶部细色条（区分卡池）
+        var accent = new Border
         {
-            SettingsService.Settings.GamePaths[_gameKey] = detected;
-            SettingsService.Save();
-        }
-        return detected;
+            Height = 3,
+            CornerRadius = new CornerRadius(2),
+            Background = Brush(accentHex),
+            Opacity = 0.75,
+            Margin = new Thickness(0, 0, 0, 10),
+        };
+        grid.Children.Add(accent);
+
+        // 标题 + 总数
+        var headGrid = new Grid { Margin = new Thickness(0, 0, 0, 2) };
+        headGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        headGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var nameBlock = new TextBlock
+        {
+            Text = pool.Name,
+            FontSize = 15,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = (Brush)Application.Current.Resources["TextPrimary"],
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        var totalBlock = new TextBlock
+        {
+            Text = total.ToString(),
+            FontSize = 15,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = (Brush)Application.Current.Resources["TextSecondary"],
+            Margin = new Thickness(8, 0, 0, 0),
+        };
+        Grid.SetColumn(totalBlock, 1);
+        headGrid.Children.Add(nameBlock);
+        headGrid.Children.Add(totalBlock);
+        Grid.SetRow(headGrid, 1);
+        grid.Children.Add(headGrid);
+
+        // 时间区间 + 统计
+        var statPanel = new StackPanel { Margin = new Thickness(0, 2, 0, 10) };
+        statPanel.Children.Add(new TextBlock
+        {
+            Text = $"{Short(start)} - {Short(end)}",
+            FontSize = 10,
+            Foreground = (Brush)Application.Current.Resources["TextSecondary"],
+            Margin = new Thickness(0, 0, 0, 8),
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        });
+
+        statPanel.Children.Add(StatRowHost("5★ 平均", five.Count > 0 ? avgFive.ToString("0.00") : "—", "#D9A24A"));
+        statPanel.Children.Add(StatRowHost("5★ 统计", $"{cFive}  [{Pct(cFive)}]", "#D9A24A"));
+        statPanel.Children.Add(StatRowHost("4★ 统计", $"{cFour}  [{Pct(cFour)}]", "#A47BD0"));
+        statPanel.Children.Add(StatRowHost("3★ 统计", $"{cThree}  [{Pct(cThree)}]", "#7C93B0"));
+        Grid.SetRow(statPanel, 2);
+        grid.Children.Add(statPanel);
+
+        // 5★ / 4★ 分段切换
+        var tabs = new Grid { Height = 28, Margin = new Thickness(0, 0, 0, 8) };
+        tabs.ColumnDefinitions.Add(new ColumnDefinition());
+        tabs.ColumnDefinitions.Add(new ColumnDefinition());
+        var pillBg = new Border
+        {
+            CornerRadius = new CornerRadius(7),
+            BorderThickness = new Thickness(1),
+        };
+        pillBg.SetResourceReference(Border.BackgroundProperty, "InputBg");
+        pillBg.SetResourceReference(Border.BorderBrushProperty, "CardBorder");
+        Grid.SetColumnSpan(pillBg, 2);
+        tabs.Children.Add(pillBg);
+
+        col.TabFive = MakePillButton("5★");
+        col.TabFive.Margin = new Thickness(2);
+        col.TabFive.Click += (_, _) => SwitchTab(col, true);
+        Grid.SetColumn(col.TabFive, 0);
+
+        col.TabFour = MakePillButton("4★");
+        col.TabFour.Margin = new Thickness(2);
+        col.TabFour.Click += (_, _) => SwitchTab(col, false);
+        Grid.SetColumn(col.TabFour, 1);
+
+        tabs.Children.Add(col.TabFive);
+        tabs.Children.Add(col.TabFour);
+        Grid.SetRow(tabs, 3);
+        grid.Children.Add(tabs);
+
+        // 记录列表（占满剩余高度）
+        var listScroll = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Margin = new Thickness(0, 0, -6, 0),
+            Padding = new Thickness(0, 0, 6, 0),
+        };
+        listScroll.Content = col.ListPanel;
+        var listHost = new Grid { MinHeight = 180, Margin = new Thickness(0, 0, 0, 0) };
+        listHost.Children.Add(listScroll);
+        Grid.SetRow(listHost, 4);
+        grid.Children.Add(listHost);
+
+        // 空态提示
+        col.EmptyHint = new TextBlock
+        {
+            Text = "暂无记录",
+            FontSize = 12,
+            Foreground = (Brush)Application.Current.Resources["TextSecondary"],
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 30, 0, 0),
+        };
+        listHost.Children.Add(col.EmptyHint);
+
+        root.Child = grid;
+        col.Root = root;
+
+        SwitchTab(col, true);
+        return col;
     }
 
-    private async void BtnAutoFetch_Click(object sender, RoutedEventArgs e)
+    private Border StatRowHost(string label, string value, string colorHex)
     {
-        var dir = ResolveDir();
+        var g = new Grid { Margin = new Thickness(0, 2, 0, 0) };
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var l = new TextBlock
+        {
+            Text = label,
+            FontSize = 11.5,
+            Foreground = Brush(colorHex),
+            FontWeight = FontWeights.SemiBold,
+        };
+        var v = new TextBlock
+        {
+            Text = value,
+            FontSize = 11.5,
+            Foreground = Brush(colorHex),
+            FontWeight = FontWeights.SemiBold,
+        };
+        Grid.SetColumn(v, 1);
+        g.Children.Add(l);
+        g.Children.Add(v);
+        return new Border { Child = g };
+    }
+
+    private void BannerScroll_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        ApplyColumnWidth();
+    }
+
+    private void ApplyColumnWidth()
+    {
+        if (_columns.Count == 0) return;
+        var avail = BannerScroll.ActualWidth - 4;
+        if (avail <= 0) return;
+        var gap = 10.0;
+        var w = (avail - gap * (_columns.Count - 1)) / _columns.Count;
+        w = Math.Clamp(w, 208, 340);
+        foreach (var c in _columns) c.Card.Width = w;
+    }
+
+    private Button MakePillButton(string text)
+    {
+        var b = new Button
+        {
+            Content = text,
+            FontSize = 12,
+            BorderThickness = new Thickness(0),
+            Background = Brushes.Transparent,
+            Padding = new Thickness(0, 4, 0, 4),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            Cursor = System.Windows.Input.Cursors.Hand,
+        };
+        AutomationProperties.SetName(b, text);
+        b.SetResourceReference(System.Windows.Controls.Control.ForegroundProperty, "TextSecondary");
+        return b;
+    }
+
+    private void SwitchTab(ColumnUi col, bool five)
+    {
+        col.ShowFive = five;
+        var accent = (Brush)Application.Current.Resources["Accent"];
+        var secondary = (Brush)Application.Current.Resources["TextSecondary"];
+        var cardBg = (Brush)Application.Current.Resources["CardBg"];
+
+        col.TabFive.Background = five ? cardBg : Brushes.Transparent;
+        col.TabFour.Background = five ? Brushes.Transparent : cardBg;
+        col.TabFive.Foreground = five ? accent : secondary;
+        col.TabFour.Foreground = five ? secondary : accent;
+        col.TabFive.FontWeight = five ? FontWeights.SemiBold : FontWeights.Normal;
+        col.TabFour.FontWeight = five ? FontWeights.Normal : FontWeights.SemiBold;
+        col.TabFour.Visibility = ChkShow4.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+
+        RenderRows(col);
+    }
+
+    private void ShowOption_Changed(object sender, RoutedEventArgs e)
+    {
+        foreach (var col in _columns)
+        {
+            col.TabFour.Visibility = ChkShow4.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+            if (ChkShow4.IsChecked != true && !col.ShowFive) SwitchTab(col, true);
+            else RenderRows(col);
+        }
+    }
+
+    private void RenderRows(ColumnUi col)
+    {
+        col.ListPanel.Children.Clear();
+        var rows = col.ShowFive ? col.FiveRows : col.FourRows;
+        col.EmptyHint.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        col.EmptyHint.Text = col.ShowFive && col.Pending > 0 ? "暂无 5★ 记录" : "暂无记录";
+
+        if (col.ShowFive && col.Total > 0)
+        {
+            var pityRow = new Grid { Margin = new Thickness(0, 0, 0, 6), Height = 28 };
+            pityRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            pityRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var bg = new Border
+            {
+                CornerRadius = new CornerRadius(6),
+                Background = Brush(ColorFor(col.Pending)),
+                Opacity = 0.9,
+            };
+            Grid.SetColumnSpan(bg, 2);
+            pityRow.Children.Add(bg);
+
+            var label = new TextBlock
+            {
+                Text = "已垫",
+                FontSize = 12,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = Brush("#FFFFFF"),
+                Margin = new Thickness(9, 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            var val = new TextBlock
+            {
+                Text = col.Pending.ToString(),
+                FontSize = 12,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = Brush("#FFFFFF"),
+                Margin = new Thickness(0, 0, 9, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            Grid.SetColumn(val, 1);
+            pityRow.Children.Add(label);
+            pityRow.Children.Add(val);
+            col.ListPanel.Children.Add(pityRow);
+        }
+
+        foreach (var row in rows)
+            col.ListPanel.Children.Add(BuildRow(row));
+    }
+
+    /// <summary>保底色阶：<74 绿、74-89 橙、>=90 红（对应原神/星铁 5★ 保底区间）</summary>
+    private static string ColorFor(int pity)
+        => pity >= 90 ? "#C0453F" : pity >= 74 ? "#D08A3E" : "#3F9B6B";
+
+    private Border BuildRow(RowVm row)
+    {
+        var rank = row.Item.RankType;
+        var rankColor = RankColor.TryGetValue(rank, out var rc) ? rc : "#7C93B0";
+
+        var g = new Grid { Margin = new Thickness(0, 0, 0, 4), Height = 32 };
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var rowBg = new Border
+        {
+            CornerRadius = new CornerRadius(6),
+            Background = Brush(RankSoft.TryGetValue(rank, out var soft) ? soft : "#00000000"),
+        };
+        Grid.SetColumnSpan(rowBg, 3);
+        g.Children.Add(rowBg);
+
+        if (ChkShowIcon.IsChecked == true)
+        {
+            var name = row.Item.Name;
+            var badge = new Border
+            {
+                Width = 26,
+                Height = 26,
+                CornerRadius = new CornerRadius(7),
+                Margin = new Thickness(5, 0, 7, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                Background = new LinearGradientBrush(
+                    (Color)ColorConverter.ConvertFromString(rankColor),
+                    (Color)ColorConverter.ConvertFromString("#FFFFFF"),
+                    new Point(0, 0), new Point(0, 1)),
+                Opacity = 0.92,
+                ToolTip = name,
+            };
+            badge.Child = new TextBlock
+            {
+                Text = name.Length > 0 ? name[..1] : "?",
+                FontSize = 12,
+                FontWeight = FontWeights.Bold,
+                Foreground = Brush("#FFFFFF"),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            g.Children.Add(badge);
+        }
+
+        var nameBlock = new TextBlock
+        {
+            Text = row.Item.Name,
+            FontSize = 12,
+            Foreground = (Brush)Application.Current.Resources["TextPrimary"],
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            ToolTip = $"{row.Item.Name} · {row.Item.Time}",
+            Margin = new Thickness(ChkShowIcon.IsChecked == true ? 0 : 8, 0, 6, 0),
+        };
+        Grid.SetColumn(nameBlock, 1);
+        g.Children.Add(nameBlock);
+
+        var pityBlock = new TextBlock
+        {
+            Text = row.Pity.ToString(),
+            FontSize = 12,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = Brush(ColorFor(row.Pity)),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 9, 0),
+        };
+        Grid.SetColumn(pityBlock, 2);
+        g.Children.Add(pityBlock);
+
+        return new Border { Child = g, Background = Brushes.Transparent };
+    }
+
+    // ================= 拉取 / 导入导出 =================
+
+    private GameDef GameDef => GameLocator.Get(_gameKey);
+
+    private string? GameDirectory()
+    {
+        var saved = SettingsService.Settings.GamePaths.TryGetValue(_gameKey, out var p) ? p : null;
+        if (!string.IsNullOrEmpty(saved) && Directory.Exists(saved)) return saved;
+        return GameLocator.DetectInstallDir(GameDef);
+    }
+
+    private async void BtnUpdate_Click(object sender, RoutedEventArgs e)
+    {
+        var dir = GameDirectory();
         if (dir == null)
         {
-            TxtStatus.Text = "未定位该游戏，请先点击「选择游戏目录」指定游戏安装目录。";
+            SetStatus("未找到游戏安装目录：请在「▾ - 选择游戏安装目录」里指定游戏根目录");
+            BtnMore.ContextMenu!.IsOpen = true;
             return;
         }
 
-        var g = GameLocator.Get(_gameKey);
-        var rawUrl = GameLocator.FindGachaUrl(dir, g);
-        if (string.IsNullOrEmpty(rawUrl))
+        var url = GameLocator.FindGachaUrl(dir, GameDef);
+        if (string.IsNullOrEmpty(url))
         {
-            TxtStatus.Text = "未在缓存中找到抽卡链接。请先在游戏内打开一次「抽卡记录」页面后重试，\n" +
-                             "或点击「粘贴链接」手动输入（搜索目录：" + Path.Combine(dir, g.DataDir, "webCaches") + "）。";
+            SetStatus("游戏缓存中还没有抽卡链接：请先启动游戏，在游戏内打开一次「抽卡记录」页面，再回来点「更新记录」");
             return;
         }
-        await FetchAsync(GachaService.ToApiUrl(rawUrl, _gameKey));
+        await FetchAsync(GachaService.ToApiUrl(url, _gameKey));
     }
 
-    private async void BtnPickFolder_Click(object sender, RoutedEventArgs e)
+    private async Task FetchAsync(string apiUrl)
     {
-        using var dlg = new System.Windows.Forms.FolderBrowserDialog
-        {
-            Description = $"选择「{GameLocator.Get(_gameKey).Name}」安装目录（含 {GameLocator.Get(_gameKey).DataDir} 的文件夹）",
-            UseDescriptionForTitle = true,
-        };
-        if (dlg.ShowDialog() != System.Windows.Forms.DialogResult.OK) return;
-
-        SettingsService.Settings.GamePaths[_gameKey] = dlg.SelectedPath;
-        SettingsService.Save();
-
-        var g = GameLocator.Get(_gameKey);
-        var rawUrl = GameLocator.FindGachaUrl(dlg.SelectedPath, g);
-        if (string.IsNullOrEmpty(rawUrl))
-        {
-            TxtStatus.Text = "该目录缓存中未找到抽卡链接，请先在游戏内打开「抽卡记录」页面后重试，或手动粘贴链接。";
-            return;
-        }
-        await FetchAsync(GachaService.ToApiUrl(rawUrl, _gameKey));
-    }
-
-    private async void BtnPasteUrl_Click(object sender, RoutedEventArgs e)
-    {
-        var dlg = new InputDialog("粘贴抽卡链接",
-            "粘贴从游戏缓存或浏览器开发者工具中复制的 getGachaLog 链接（应包含 authkey 参数）：");
-        if (dlg.ShowDialog() == true && !string.IsNullOrWhiteSpace(dlg.Result))
-            await FetchAsync(dlg.Result.Trim());
-    }
-
-    /// <summary>拉取 → 合并进本地库 → 刷新展示</summary>
-    private async Task FetchAsync(string url)
-    {
-        _baseUrl = url;
-        TxtStatus.Text = "正在拉取抽卡记录…";
+        BtnUpdate.IsEnabled = false;
+        BtnUpdate.Content = "更新中…";
         try
         {
-            var (ok, msg, items) = await GachaService.FetchAllAsync(url, _gameKey);
+            var (ok, msg, items) = await GachaService.FetchAllAsync(apiUrl, _gameKey);
+            if (!ok || items.Count == 0)
+            {
+                SetStatus(items.Count == 0 ? msg : $"{msg}（已保留本地库记录）");
+                return;
+            }
             foreach (var it in items)
             {
                 it.GameKey = _gameKey;
                 it.PoolName = GachaService.PoolName(_gameKey, it.GachaType);
             }
-
-            if (!ok)
-            {
-                TxtStatus.Text = $"拉取中断：{msg}（已拉取部分也会合并进本地库）";
-            }
-
             var added = GachaStore.Merge(items);
-            // 拉取后 UID 下拉可能新增（首次拉取该账号时），刷新并默认选中该 UID
-            RefreshUidList();
-            ReloadFromStore(resetStatus: false);
-
-            var uid = items.FirstOrDefault()?.Uid;
-            if (uid != null)
-            {
-                var idx = ComboUid.Items.IndexOf(uid);
-                if (idx > 0) ComboUid.SelectedIndex = idx;
-            }
-
-            if (ok)
-                TxtStatus.Text = $"拉取完成：{msg}；本地库新增 {added} 条（该游戏本地库共 {GachaStore.Query(null, _gameKey).Count} 条）。";
-            // 失败时保留上面的"拉取中断"提示
+            RefreshAll();
+            SetStatus(added > 0
+                ? $"更新完成：拉到 {items.Count} 条，新增 {added} 条"
+                : $"更新完成：拉到 {items.Count} 条，没有新记录");
         }
         catch (Exception ex)
         {
-            TxtStatus.Text = $"拉取失败：{ex.Message}";
+            SetStatus("更新失败：" + ex.Message);
+        }
+        finally
+        {
+            BtnUpdate.IsEnabled = true;
+            BtnUpdate.Content = "更新记录";
         }
     }
 
-    /// <summary>导入 UIGF / SRGF 文件到本地库</summary>
-    private void BtnImport_Click(object sender, RoutedEventArgs e)
-    {
-        using var dlg = new System.Windows.Forms.OpenFileDialog
-        {
-            Title = "导入抽卡记录（UIGF / SRGF）",
-            Filter = "抽卡记录文件|*.json;*.json.gz|所有文件|*.*",
-        };
-        if (dlg.ShowDialog() != System.Windows.Forms.DialogResult.OK) return;
+    private void MenuUpdateCache_Click(object sender, RoutedEventArgs e) => BtnUpdate_Click(sender, e);
 
+    private async void MenuUpdateAccount_Click(object sender, RoutedEventArgs e)
+    {
+        var acc = AccountService.Active;
+        if (acc == null || string.IsNullOrEmpty(acc.Cookie))
+        {
+            SetStatus("没有已登录账号：请先在左侧「账号」页登录米游社账号");
+            return;
+        }
+        var biz = _gameKey switch
+        {
+            "genshin" => "hk4e_cn",
+            "starrail" => "hkrpg_cn",
+            "zzz" => "nap_cn",
+            _ => "bh3_cn",
+        };
+        BtnUpdate.IsEnabled = false;
+        BtnUpdate.Content = "获取中…";
+        try
+        {
+            var (roles, err) = await SignService.GetRolesAsync(acc.Cookie, biz);
+            if (roles.Count == 0)
+            {
+                SetStatus($"该账号下没有{GameLabels[Array.IndexOf(GameKeys, _gameKey)]}角色：{err}");
+                return;
+            }
+            var role = roles[0];
+            var (ok, msg, url) = await GachaService.GenAuthKeyAsync(acc.Cookie, biz, role.Region, role.Uid);
+            if (!ok || url == null)
+            {
+                SetStatus($"从账号生成 authkey 失败：{msg}。可改用游戏缓存方式（先在游戏内打开抽卡记录页）");
+                return;
+            }
+            await FetchAsync(url);
+        }
+        finally
+        {
+            BtnUpdate.IsEnabled = true;
+            BtnUpdate.Content = "更新记录";
+        }
+    }
+
+    private async void MenuPasteUrl_Click(object sender, RoutedEventArgs e)
+    {
+        var text = Prompt("粘贴抽卡记录链接", "把游戏里「抽卡记录」页面的 URL（或带 authkey 的链接）粘贴进来：");
+        if (string.IsNullOrWhiteSpace(text)) return;
+        await FetchAsync(GachaService.ToApiUrl(text.Trim(), _gameKey));
+    }
+
+    private void MenuPickFolder_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new OpenFolderDialog
+        {
+            Title = $"选择 {GameLabels[Array.IndexOf(GameKeys, _gameKey)]} 的安装目录",
+        };
+        var dir = GameDirectory();
+        if (dir != null) dlg.InitialDirectory = dir;
+        if (dlg.ShowDialog() != true) return;
+        SettingsService.Settings.GamePaths[_gameKey] = dlg.FolderName;
+        SettingsService.Save();
+        SetStatus("已保存游戏目录：" + dlg.FolderName);
+    }
+
+    private void MenuImport_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "导入 UIGF / SRGF 文件",
+            Filter = "抽卡记录 (*.json)|*.json|所有文件 (*.*)|*.*",
+        };
+        if (dlg.ShowDialog() != true) return;
         var (ok, msg, total, added) = GachaStore.ImportFile(dlg.FileName, _gameKey);
         if (!ok)
         {
-            TxtStatus.Text = msg;
+            SetStatus(msg);
             return;
         }
-        RefreshUidList();
-        ReloadFromStore();
-        TxtStatus.Text = $"{msg}，新增 {added} 条（导入目标：{GameLocator.Get(_gameKey).Name}）。";
+        foreach (var it in GachaStore.Query(null, _gameKey).Where(x => string.IsNullOrEmpty(x.PoolName)))
+            it.PoolName = GachaService.PoolName(_gameKey, it.GachaType);
+        RefreshAll();
+        SetStatus($"{msg}，新增 {added} 条");
     }
 
-    private void BtnExportUigf_Click(object sender, RoutedEventArgs e)
-    {
-        ExportCore("UIGF", "*.json", "uigf", (path, uid, key) => GachaStore.ExportUigf(uid, key, path));
-    }
+    private void ExportUigf_Click(object sender, RoutedEventArgs e) => Export("uigf");
+    private void ExportSrgf_Click(object sender, RoutedEventArgs e) => Export("srgf");
+    private void ExportCsv_Click(object sender, RoutedEventArgs e) => Export("csv");
 
-    private void BtnExportSrgf_Click(object sender, RoutedEventArgs e)
+    private void Export(string kind)
     {
-        ExportCore("SRGF", "*.json", "srgf", (path, uid, key) => GachaStore.ExportSrgf(uid, key, path));
-    }
-
-    private void BtnExportCsv_Click(object sender, RoutedEventArgs e)
-    {
-        ExportCore("CSV", "*.csv", "csv", (path, uid, key) => GachaStore.ExportCsv(uid, key, path));
-    }
-
-    private void ExportCore(string fmt, string filter, string ext,
-        Action<string, string, string> writer)
-    {
-        var uid = ComboUid.SelectedItem as string;
-        if (string.IsNullOrEmpty(uid) || uid == "全部")
+        var uid = SelectedUid;
+        if (uid == null)
         {
-            // 全部时按当前游戏导出所有 UID 的记录；文件名不含具体 UID
-            var all = GachaStore.Query(null, _gameKey);
-            if (all.Count == 0)
+            var uids = GachaStore.GetUids(_gameKey);
+            if (uids.Count != 1)
             {
-                TxtStatus.Text = "没有可导出的记录";
+                SetStatus("导出前请先在右上角选择一个具体 UID");
                 return;
             }
-            using var dlg = new System.Windows.Forms.SaveFileDialog
+            uid = uids[0];
+        }
+        var dlg = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "导出抽卡记录",
+            FileName = $"mi-Nest_{_gameKey}_{uid}_{kind.ToUpperInvariant()}",
+            Filter = kind switch
             {
-                Title = $"导出 {fmt} 抽卡记录",
-                Filter = $"{fmt} 文件|{filter}",
-                FileName = $"mi-Nest_{_gameKey}_{fmt.ToLower()}.{ext}",
-            };
-            if (dlg.ShowDialog() != System.Windows.Forms.DialogResult.OK) return;
-
-            var exportUid = all[0].Uid;
-            writer(dlg.FileName, exportUid, _gameKey);
-            TxtStatus.Text = $"已导出：{dlg.FileName}（共 {all.Count} 条，UID {exportUid}）";
-            return;
-        }
-
-        var list = GachaStore.Query(uid, _gameKey);
-        if (list.Count == 0)
-        {
-            TxtStatus.Text = "该 UID 下没有可导出的记录";
-            return;
-        }
-        using var dlg2 = new System.Windows.Forms.SaveFileDialog
-        {
-            Title = $"导出 {fmt} 抽卡记录",
-            Filter = $"{fmt} 文件|{filter}",
-            FileName = $"mi-Nest_{_gameKey}_{uid}_{fmt.ToLower()}.{ext}",
+                "uigf" => "UIGF 文件 (*.json)|*.json",
+                "srgf" => "SRGF 文件 (*.json)|*.json",
+                _ => "CSV 文件 (*.csv)|*.csv",
+            },
         };
-        if (dlg2.ShowDialog() != System.Windows.Forms.DialogResult.OK) return;
-
-        writer(dlg2.FileName, uid, _gameKey);
-        TxtStatus.Text = $"已导出：{dlg2.FileName}（共 {list.Count} 条，UID {uid}）";
-    }
-
-    private void BtnClear_Click(object sender, RoutedEventArgs e)
-    {
-        // 仅清空当前展示（不删本地库）；如确需删除本地库数据请手动处理 gacha_records.json
-        _items.Clear();
-        Grid.ItemsSource = null;
-        UpdateStats();
-        TxtStatus.Text = "已清空当前展示（本地库数据保留，重新进入页面会自动载入）。";
-    }
-
-    /// <summary>刷新顶部统计卡片（总抽数 / 五星 / 四星 / 三星 / 五星率 / 距上次五星）</summary>
-    private void UpdateStats(int? total = null)
-    {
-        var filter = ComboPool.SelectedItem as string ?? "全部";
-        var list = filter == "全部"
-            ? _items.ToList()
-            : _items.Where(x => PoolCategory(x) == filter).ToList();
-        var n = total ?? list.Count;
-        if (n == 0)
+        if (dlg.ShowDialog() != true) return;
+        try
         {
-            BuildStatCards(0, 0, 0, 0, 0, 0);
+            switch (kind)
+            {
+                case "uigf": GachaStore.ExportUigf(uid, _gameKey, dlg.FileName); break;
+                case "srgf": GachaStore.ExportSrgf(uid, _gameKey, dlg.FileName); break;
+                default: GachaStore.ExportCsv(uid, _gameKey, dlg.FileName); break;
+            }
+            SetStatus("已导出：" + dlg.FileName);
+        }
+        catch (Exception ex)
+        {
+            SetStatus("导出失败：" + ex.Message);
+        }
+    }
+
+    private void ClearUid_Click(object sender, RoutedEventArgs e)
+    {
+        var uid = SelectedUid;
+        if (uid == null)
+        {
+            SetStatus("清空前请先选择一个具体 UID");
             return;
         }
-
-        long five = list.Count(x => x.RankType == "5");
-        long four = list.Count(x => x.RankType == "4");
-        long three = list.Count(x => x.RankType == "3");
-
-        // 当前未出五星抽数：列表按时间倒序（最新在前），从最新向前数到最近一个五星
-        long pity = 0;
-        for (var i = 0; i < list.Count; i++)
-        {
-            if (list[i].RankType == "5") break;
-            pity++;
-        }
-
-        var rate = n > 0 ? (double)five / n : 0;
-        BuildStatCards(n, five, four, three, rate, pity);
+        if (MessageBox.Show($"确定清空 UID {uid} 的本地抽卡记录？此操作不可恢复。", "mi-Nest",
+                MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK) return;
+        GachaStore.Clear(uid, _gameKey);
+        RefreshAll();
+        SetStatus($"已清空 UID {uid} 的本地记录");
     }
 
-    private void BuildStatCards(long total, long five, long four, long three, double rate, long pity)
+    private void OpenDataDir_Click(object sender, RoutedEventArgs e)
     {
-        StatsPanel.Children.Clear();
-
-        void Card(string title, string value, string sub, Brush color)
+        try
         {
-            var border = new Border
+            Process.Start(new ProcessStartInfo
             {
-                Width = 122,
-                Height = 82,
-                Margin = new Thickness(0, 0, 12, 0),
-                Background = (Brush)FindResource("CardBg"),
-                BorderBrush = (Brush)FindResource("CardBorder"),
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(12),
-            };
-            // 左 4px 色条（星级色 / 主题色）+ 右侧内容
-            var grid = new Grid();
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(5) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition());
-            var bar = new Border
-            {
-                Width = 5,
-                Background = color,
-                CornerRadius = new CornerRadius(5, 0, 0, 5),
-                HorizontalAlignment = HorizontalAlignment.Left,
-                VerticalAlignment = VerticalAlignment.Stretch,
-                Margin = new Thickness(0, 8, 0, 8),
-            };
-            var sp = new StackPanel { Margin = new Thickness(12, 9, 8, 8) };
-            sp.Children.Add(new TextBlock { Text = title, FontSize = 11.5, Foreground = color, Opacity = 0.9 });
-            sp.Children.Add(new TextBlock
-            {
-                Text = value, FontSize = 21, FontWeight = FontWeights.Bold,
-                Foreground = (Brush)FindResource("TextPrimary"), Margin = new Thickness(0, 1, 0, 0),
+                FileName = AppPaths.DataDir,
+                UseShellExecute = true,
             });
-            if (!string.IsNullOrEmpty(sub))
-                sp.Children.Add(new TextBlock { Text = sub, FontSize = 10.5, Foreground = color, Opacity = 0.9, Margin = new Thickness(0, 1, 0, 0) });
-            System.Windows.Controls.Grid.SetColumn(bar, 0);
-            System.Windows.Controls.Grid.SetColumn(sp, 1);
-            grid.Children.Add(bar);
-            grid.Children.Add(sp);
-            border.Child = grid;
-            StatsPanel.Children.Add(border);
         }
+        catch (Exception ex)
+        {
+            SetStatus("打开目录失败：" + ex.Message);
+        }
+    }
 
-        var fiveBrush = new SolidColorBrush(Color.FromRgb(0xFF, 0xB6, 0x5C));
-        var fourBrush = new SolidColorBrush(Color.FromRgb(0xB0, 0x8C, 0xEF));
-        var threeBrush = new SolidColorBrush(Color.FromRgb(0x8A, 0x93, 0xA8));
-        Card("总抽数", total.ToString("N0"), "", (Brush)FindResource("TextPrimary"));
-        Card("五星", five.ToString("N0"), five == 0 ? "" : $"{rate:P1}", fiveBrush);
-        Card("四星", four.ToString("N0"), "", fourBrush);
-        Card("三星", three.ToString("N0"), "", threeBrush);
-        Card("距上次五星", $"{pity:N0} 抽", pity >= 89 ? "已到保底范围" : "", fiveBrush);
+    private void BtnSettings_Click(object sender, RoutedEventArgs e)
+    {
+        PanelSettings.Visibility = PanelSettings.Visibility == Visibility.Visible
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+    }
+
+    private void BtnMore_Click(object sender, RoutedEventArgs e)
+    {
+        var btn = (Button)sender;
+        var menu = btn.ContextMenu!;
+        menu.PlacementTarget = btn;
+        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+        menu.IsOpen = true;
+    }
+
+    private void SetStatus(string text) => TxtStatus.Text = $"{DateTime.Now:HH:mm:ss}  {text}";
+
+    /// <summary>简易文本输入对话框（粘贴链接用）</summary>
+    private static string? Prompt(string title, string hint)
+    {
+        var win = new Window
+        {
+            Title = title,
+            Width = 560,
+            Height = 200,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            ResizeMode = ResizeMode.NoResize,
+            Background = (Brush)Application.Current.Resources["CardBg"],
+            Owner = Application.Current.MainWindow,
+        };
+        var panel = new StackPanel { Margin = new Thickness(18) };
+        panel.Children.Add(new TextBlock
+        {
+            Text = hint,
+            FontSize = 12,
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = (Brush)Application.Current.Resources["TextSecondary"],
+        });
+        var box = new TextBox { Margin = new Thickness(0, 10, 0, 12), Height = 30 };
+        panel.Children.Add(box);
+        var buttons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+        };
+        string? result = null;
+        var okBtn = new Button { Content = "确定", Width = 84, Height = 30, IsDefault = true };
+        okBtn.Click += (_, _) => { result = box.Text; win.Close(); };
+        var cancelBtn = new Button { Content = "取消", Width = 84, Height = 30, Margin = new Thickness(8, 0, 0, 0), IsCancel = true };
+        buttons.Children.Add(okBtn);
+        buttons.Children.Add(cancelBtn);
+        panel.Children.Add(buttons);
+        win.Content = panel;
+        win.ShowDialog();
+        return result;
     }
 }

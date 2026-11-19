@@ -27,8 +27,36 @@
         <ScrollViewer Grid.Row="1" Margin="0,16,0,0" VerticalScrollBarVisibility="Auto">
             <StackPanel MaxWidth="1180" HorizontalAlignment="Left">
 
+                <!-- 界面不透明度（滑动条 0-100）：控制卡片 / 框框背景 -->
+                <Border Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource CardBorder}"
+                        BorderThickness="1" CornerRadius="12" Padding="18" Effect="{DynamicResource CardShadow}">
+                    <StackPanel>
+                        <TextBlock Text="界面不透明度" Style="{StaticResource SectionTitle}"/>
+                        <TextBlock Text="拖动滑动条调整页面中卡片、输入框等「框框」背景的不透明度：0 = 完全透明（只看到文字），100 = 主题原色。"
+                                   FontSize="11.5" Foreground="{DynamicResource TextSecondary}"
+                                   Margin="0,6,0,0" TextWrapping="Wrap"/>
+                        <Grid Margin="0,14,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="0" FontSize="12" Foreground="{DynamicResource TextSecondary}"
+                                       VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <Slider x:Name="SldOpacity" Grid.Column="1" Minimum="0" Maximum="100"
+                                    TickFrequency="5" IsSnapToTickEnabled="True"
+                                    VerticalAlignment="Center"
+                                    AutomationProperties.Name="界面不透明度"
+                                    ValueChanged="Opacity_Changed"/>
+                            <TextBlock x:Name="TxtOpacityVal" Grid.Column="2" Text="100%"
+                                       FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"
+                                       VerticalAlignment="Center" Margin="12,0,0,0" MinWidth="44"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
                 <!-- 界面配色 + 更新/卸载 -->
-                <Grid>
+                <Grid Margin="0,18,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>

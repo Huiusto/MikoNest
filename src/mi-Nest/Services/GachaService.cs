@@ -1,42 +1,44 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net.Http;
 using System.Text.Json;
 using System.Threading.Tasks;
 using MiNest.Models;
 
 namespace MiNest.Services;
 
-/// <summary>抽卡记录：用 authkey URL 调米哈游抽卡日志接口（Starward 同款思路）</summary>
+/// <summary>抽卡记录：池定义、authkey、拉取（Starward 同款接口口径）</summary>
 public static class GachaService
 {
     private const string GenAuthKeyUrl = "https://api-takumi.mihoyo.com/binding/api/genAuthKey";
     private const string BbsUa = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) miHoYoBBS/2.115.0";
     private const string GachaUa = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) miHoYoBBS/2.115.0";
-    /// <summary>各游戏卡池定义（UIGF 通用编号）</summary>
+
+    /// <summary>各游戏卡池定义（UIGF / SRGF 通用编号）</summary>
     public static readonly Dictionary<string, GachaPoolDef[]> Pools = new()
     {
         ["genshin"] = new[]
         {
+            new GachaPoolDef("302", "常驻祈愿"),
             new GachaPoolDef("200", "角色活动祈愿"),
             new GachaPoolDef("301", "武器活动祈愿"),
-            new GachaPoolDef("302", "常驻祈愿"),
+            new GachaPoolDef("500", "集录祈愿"),
             new GachaPoolDef("100", "新手祈愿"),
         },
         ["starrail"] = new[]
         {
-            new GachaPoolDef("11", "新手跃迁"),
-            new GachaPoolDef("12", "角色活动跃迁"),
-            new GachaPoolDef("13", "光锥活动跃迁"),
-            new GachaPoolDef("14", "常驻跃迁"),
+            new GachaPoolDef("1", "群星跃迁"),
+            new GachaPoolDef("11", "角色活动跃迁"),
+            new GachaPoolDef("12", "光锥活动跃迁"),
+            new GachaPoolDef("21", "角色联动跃迁"),
+            new GachaPoolDef("2", "新手跃迁"),
         },
         ["zzz"] = new[]
         {
-            new GachaPoolDef("101", "独家频段"),
-            new GachaPoolDef("201", "音擎频段"),
-            new GachaPoolDef("301", "常驻频段"),
-            new GachaPoolDef("401", "邦布频段"),
+            new GachaPoolDef("2", "独家频段"),
+            new GachaPoolDef("3", "音擎频段"),
+            new GachaPoolDef("1", "常驻频段"),
+            new GachaPoolDef("5", "邦布频段"),
         },
         ["bh3"] = new[]
         {
@@ -58,11 +60,7 @@ public static class GachaService
     public static string NormalizeUrl(string url)
         => url.Contains('?') ? url : url + "?";
 
-    /// <summary>
-    /// 把 webCaches 中提取的抽卡页面 URL 转换成 getGachaLog API URL（移植 Starward GetGachaUrlPrefix）。
-    /// 页面 URL 形如 https://webstatic.mihoyo.com/hk4e/event/e20190909gacha/index.html?authkey=...；
-    /// 需替换成对应游戏的 public-operation API 前缀，保留 authkey 等查询参数。
-    /// </summary>
+    /// <summary>把游戏缓存里的抽卡页面 URL 换成 getGachaLog API 地址（移植 Starward GetGachaUrlPrefix）</summary>
     public static string ToApiUrl(string url, string gameKey)
     {
         if (string.IsNullOrEmpty(url)) return url;
@@ -74,14 +72,13 @@ public static class GachaService
             "zzz" => "https://public-operation-nap.mihoyo.com/common/gacha_record/api/getGachaLog",
             _ => null,
         };
-        if (api == null) return url; // 崩坏3 暂无公开 API 前缀，原样返回
+        if (api == null) return url;
 
         var q = url.IndexOf('?');
         if (q < 0) return url;
         var auth = url[q..].Replace("#/log", "");
         var result = api + auth;
 
-        // 老版本缓存 URL 可能缺 game_biz，按游戏补全（已包含则跳过）
         var biz = gameKey switch
         {
             "genshin" => "hk4e_cn",
@@ -94,27 +91,17 @@ public static class GachaService
         return result;
     }
 
-    /// <summary>
-    /// 用已登录米游社账号的 Cookie 生成抽卡 authkey（官方 genAuthKey 接口，Starward 同款思路）。
-    /// Cookie 需包含 stoken / stuid / mid。
-    /// </summary>
-    public static async Task<(bool ok, string message, string? baseUrl)> GenAuthKeyAsync(
+    /// <summary>用米游社登录态生成抽卡 authkey（部分网络环境会被风控拦截，失败时提示改用缓存链接）</summary>
+    public static async Task<(bool ok, string message, string? url)> GenAuthKeyAsync(
         string cookie, string gameBiz, string region, string uid)
     {
-        // 兼容新版 v2 Cookie（account_mid_v2 / ltmid_v2）与旧版（mid / stuid）
         var mid = ExtractCookie(cookie, "account_mid_v2");
-        if (string.IsNullOrEmpty(mid))
-            mid = ExtractCookie(cookie, "ltmid_v2");
-        if (string.IsNullOrEmpty(mid))
-            mid = ExtractCookie(cookie, "mid");
-        if (string.IsNullOrEmpty(mid))
-            mid = ExtractCookie(cookie, "stuid");
-        if (string.IsNullOrEmpty(mid))
-            mid = ExtractCookie(cookie, "account_id_v2");
-        if (string.IsNullOrEmpty(mid))
-            mid = ExtractCookie(cookie, "ltuid_v2");
-        if (string.IsNullOrEmpty(mid))
-            mid = ExtractCookie(cookie, "account_id");
+        if (string.IsNullOrEmpty(mid)) mid = ExtractCookie(cookie, "ltmid_v2");
+        if (string.IsNullOrEmpty(mid)) mid = ExtractCookie(cookie, "mid");
+        if (string.IsNullOrEmpty(mid)) mid = ExtractCookie(cookie, "stuid");
+        if (string.IsNullOrEmpty(mid)) mid = ExtractCookie(cookie, "account_id_v2");
+        if (string.IsNullOrEmpty(mid)) mid = ExtractCookie(cookie, "ltuid_v2");
+        if (string.IsNullOrEmpty(mid)) mid = ExtractCookie(cookie, "account_id");
         if (string.IsNullOrEmpty(mid))
             return (false, "Cookie 缺少 mid/stuid（请重新登录）", null);
 
@@ -173,8 +160,7 @@ public static class GachaService
         return "";
     }
 
-
-    /// <summary>拉取单个卡池全部记录（gameKey 传 starrail 时联合跃迁池走 getLdGachaLog）</summary>
+    /// <summary>拉取单个卡池全部记录</summary>
     public static async Task<(bool ok, string message, List<GachaItem> items)> FetchPoolAsync(
         string baseUrl, string gachaType, string? gameKey = null)
     {
@@ -187,7 +173,6 @@ public static class GachaService
         {
             while (page < 100)
             {
-                // Starward 同款防风控延时
                 await Task.Delay(Random.Shared.Next(200, 300));
 
                 var query = System.Web.HttpUtility.ParseQueryString(baseUri.Query);
@@ -198,16 +183,14 @@ public static class GachaService
                 query["lang"] = "zh-cn";
 
                 var url = baseUri.GetLeftPart(UriPartial.Path) + "?" + query.ToString();
-                // 星铁联合跃迁池（角色/光锥协作跃迁）使用 getLdGachaLog 接口
-                if (gameKey == "starrail" && gachaType is "12" or "13")
+                if (gameKey == "starrail" && gachaType is "11" or "12" or "21")
                     url = url.Replace("/getGachaLog", "/getLdGachaLog");
 
                 var api = await MiHoYoHttp.GetPlainAsync(url, userAgent: GachaUa);
                 if (!api.Ok || api.Retcode != 0)
                 {
-                    // authkey 只有 5 分钟有效期；缓存里的链接过期时给出可操作提示
-                    var friendly = api.Retcode == -1 || api.Retcode == -100
-                        ? "缓存中的 authkey 已过期：请先在游戏内打开一次「抽卡记录」页面，再点「自动获取」重试"
+                    var friendly = api.Retcode is -1 or -100 or -101 or -109 or -110
+                        ? "authkey 已过期（游戏缓存里的链接约 24 小时失效）：请先在游戏内打开一次「抽卡记录」页面，再回来点「更新记录」"
                         : $"{api.Message}（{api.Retcode}）";
                     return (false, friendly, list);
                 }
@@ -248,7 +231,7 @@ public static class GachaService
         }
     }
 
-    /// <summary>拉取指定游戏全部卡池记录</summary>
+    /// <summary>拉取指定游戏全部卡池记录（多账号登录态下同一 authkey 只能取对应 UID）</summary>
     public static async Task<(bool ok, string message, List<GachaItem> items)> FetchAllAsync(string baseUrl, string gameKey)
     {
         var all = new List<GachaItem>();

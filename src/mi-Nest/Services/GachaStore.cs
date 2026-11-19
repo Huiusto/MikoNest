@@ -100,6 +100,15 @@ public static class GachaStore
         return added;
     }
 
+    /// <summary>清空某个 UID 在某游戏下的本地记录</summary>
+    public static int Clear(string uid, string? gameKey = null)
+    {
+        var removed = _store.Records.RemoveAll(r =>
+            r.Uid == uid && (gameKey == null || r.GameKey == gameKey));
+        if (removed > 0) Save();
+        return removed;
+    }
+
     /// <summary>导出 UIGF（统一可交换抽卡记录标准 v4.0，原神/绝区零/崩坏3 通用）</summary>
     public static void ExportUigf(string uid, string gameKey, string path)
     {
