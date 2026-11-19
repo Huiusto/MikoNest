@@ -36,6 +36,12 @@ public static class GachaStore
                 var json = File.ReadAllText(StorePath);
                 var loaded = JsonSerializer.Deserialize<StoreFile>(json);
                 if (loaded != null) _store = loaded;
+                // 主文件被写空时用备份兜底，避免历史记录凭空消失
+                if (_store.Records.Count == 0 && File.Exists(StorePath + ".bak"))
+                {
+                    var bak = JsonSerializer.Deserialize<StoreFile>(File.ReadAllText(StorePath + ".bak"));
+                    if (bak?.Records.Count > 0) _store = bak;
+                }
             }
         }
         catch
@@ -49,6 +55,11 @@ public static class GachaStore
         try
         {
             Directory.CreateDirectory(AppPaths.DataDir);
+            // 覆盖前留一份备份，避免异常写空导致历史记录彻底丢失
+            if (File.Exists(StorePath))
+            {
+                try { File.Copy(StorePath, StorePath + ".bak", overwrite: true); } catch { }
+            }
             File.WriteAllText(StorePath,
                 JsonSerializer.Serialize(_store, new JsonSerializerOptions { WriteIndented = true }));
         }

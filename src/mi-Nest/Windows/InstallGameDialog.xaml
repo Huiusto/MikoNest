@@ -10,15 +10,17 @@
     <Window.Resources>
         <Style x:Key="GhostBtn" TargetType="Button">
             <Setter Property="Height" Value="40"/>
-            <Setter Property="Padding" Value="22,0"/>
+            <Setter Property="MinWidth" Value="96"/>
+            <Setter Property="Padding" Value="26,0"/>
             <Setter Property="FontSize" Value="15"/>
             <Setter Property="Foreground" Value="#5A5148"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bg" CornerRadius="8" Background="#FFFFFF"
-                                BorderBrush="#D8D1C7" BorderThickness="1">
+                        <Border x:Name="Bg" CornerRadius="9" Background="#FFFFFF"
+                                BorderBrush="#D8D1C7" BorderThickness="1"
+                                Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
@@ -32,7 +34,8 @@
         </Style>
         <Style x:Key="PrimaryBtn" TargetType="Button">
             <Setter Property="Height" Value="40"/>
-            <Setter Property="Padding" Value="30,0"/>
+            <Setter Property="MinWidth" Value="120"/>
+            <Setter Property="Padding" Value="34,0"/>
             <Setter Property="FontSize" Value="15"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Foreground" Value="#FFFFFF"/>
@@ -40,7 +43,8 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bg" CornerRadius="8" Background="#C0392B">
+                        <Border x:Name="Bg" CornerRadius="9" Background="#C0392B"
+                                Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
@@ -74,9 +78,22 @@
                 <Grid Margin="18,0,10,0">
                     <TextBlock x:Name="TxtTitle" Text="选择安装路径" FontSize="16" FontWeight="SemiBold"
                                Foreground="#3F3931" VerticalAlignment="Center"/>
-                    <Button Content="✕" Width="34" Height="30" HorizontalAlignment="Right"
-                            Background="Transparent" BorderThickness="0" FontSize="14"
-                            Foreground="#7A7166" Cursor="Hand" Click="BtnClose_Click"/>
+                    <Button Content="✕" Width="44" Height="34" HorizontalAlignment="Right"
+                            Background="Transparent" BorderThickness="0" FontSize="15"
+                            Foreground="#7A7166" Cursor="Hand" Click="BtnClose_Click">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="Bg" CornerRadius="9" Background="Transparent">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Bg" Property="Background" Value="#E8E0D4"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
                 </Grid>
             </Border>
 
@@ -99,7 +116,7 @@
                                    VerticalAlignment="Center" Margin="12,0" TextTrimming="CharacterEllipsis"/>
                     </Border>
                     <Button Grid.Column="1" x:Name="BtnBrowse" Content="更改" Style="{StaticResource GhostBtn}"
-                            Height="38" Margin="10,0,0,0" Padding="18,0" Click="BtnBrowse_Click"/>
+                            Height="38" Margin="10,0,0,0" Padding="24,0" MinWidth="80" Click="BtnBrowse_Click"/>
                 </Grid>
                 <CheckBox x:Name="ChkSubFolder" Content="自动创建子文件夹" IsChecked="True"
                           FontSize="12.5" Foreground="#5A5148" Margin="0,10,0,0"
@@ -122,9 +139,9 @@
             <!-- 底部按钮 -->
             <Grid Grid.Row="2" Margin="26,0,26,14">
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                    <Button Content="取消" Style="{StaticResource GhostBtn}" Click="BtnCancel_Click"/>
+                    <Button Content="取消" Style="{StaticResource GhostBtn}" MinWidth="104" Click="BtnCancel_Click"/>
                     <Button x:Name="BtnInstall" Content="开始安装" Style="{StaticResource PrimaryBtn}"
-                            Margin="12,0,0,0" Click="BtnInstall_Click"/>
+                            MinWidth="132" Margin="14,0,0,0" Click="BtnInstall_Click"/>
                 </StackPanel>
             </Grid>
         </Grid>

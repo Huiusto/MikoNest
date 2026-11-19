@@ -119,7 +119,21 @@ public class GachaPoolDef
 {
     public string Code { get; set; } = "";
     public string Name { get; set; } = "";
+    /// <summary>同属一个卡池的其它接口编号（如原神 301 与 400 都是「角色活动祈愿」，共用保底）</summary>
+    public string[] ExtraCodes { get; set; } = Array.Empty<string>();
+
     public GachaPoolDef(string code, string name) { Code = code; Name = name; }
+
+    public GachaPoolDef(string code, string name, params string[] extraCodes)
+    {
+        Code = code;
+        Name = name;
+        ExtraCodes = extraCodes ?? Array.Empty<string>();
+    }
+
+    /// <summary>该记录编号是否属于本卡池（含合并编号）</summary>
+    public bool Matches(string gachaType)
+        => gachaType == Code || ExtraCodes.Contains(gachaType);
 }
 
 /// <summary>游戏角色（用于签到）</summary>

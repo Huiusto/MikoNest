@@ -4,19 +4,20 @@
     <!-- 未定冷：未定事件簿 冷色调深蓝（科技感 / 律政悬疑氛围） -->
     <SolidColorBrush x:Key="SidebarBg" Color="#E6101B33"/>
     <SolidColorBrush x:Key="SidebarFg" Color="#E8EEF8"/>
-    <SolidColorBrush x:Key="SidebarDim" Color="#8FA3C8"/>
-    <SolidColorBrush x:Key="NavHoverBg" Color="#4D1B2C50"/>
-    <SolidColorBrush x:Key="NavActiveBg" Color="#2E4A80"/>
+    <SolidColorBrush x:Key="SidebarDim" Color="#93A7CC"/>
+    <SolidColorBrush x:Key="NavHoverBg" Color="#521D3057"/>
+    <SolidColorBrush x:Key="NavActiveBg" Color="#3A6DBE"/>
     <SolidColorBrush x:Key="NavActiveFg" Color="#FFFFFF"/>
     <SolidColorBrush x:Key="NavBorder" Color="#101B33"/>
 
-    <!-- 页面背景（苹果式渐变） -->
-    <LinearGradientBrush x:Key="PageBg" StartPoint="0,0" EndPoint="0,1">
-        <GradientStop Color="#E7ECF4" Offset="0"/>
-        <GradientStop Color="#D0D4DC" Offset="1"/>
+    <!-- 页面背景（冷雾渐变，顶部透出一点天光） -->
+    <LinearGradientBrush x:Key="PageBg" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#F1F5FB" Offset="0"/>
+        <GradientStop Color="#E3E9F2" Offset="0.42"/>
+        <GradientStop Color="#CFD5DE" Offset="1"/>
     </LinearGradientBrush>
     <SolidColorBrush x:Key="CardBg" Color="#FFFFFF"/>
-    <SolidColorBrush x:Key="CardBorder" Color="#1A000000"/>
+    <SolidColorBrush x:Key="CardBorder" Color="#14000000"/>
     <SolidColorBrush x:Key="InputBg" Color="#FFFFFF"/>
 
     <SolidColorBrush x:Key="TextPrimary" Color="#141D2E"/>
@@ -25,7 +26,7 @@
 
     <SolidColorBrush x:Key="Accent" Color="#2E5EAA"/>
     <SolidColorBrush x:Key="AccentHover" Color="#214A8C"/>
-    <SolidColorBrush x:Key="AccentSoft" Color="#E0E9F7"/>
+    <SolidColorBrush x:Key="AccentSoft" Color="#DDE8FA"/>
 
     <SolidColorBrush x:Key="ButtonBg" Color="#FFFFFF"/>
     <SolidColorBrush x:Key="ButtonBgHover" Color="#EAF0FA"/>

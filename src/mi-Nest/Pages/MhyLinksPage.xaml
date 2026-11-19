@@ -7,8 +7,10 @@
         <StackPanel>
 
             <!-- 标题区 -->
-            <TextBlock Text="米哈游相关" FontSize="20" FontWeight="Bold"
-                       Foreground="{DynamicResource TextPrimary}"/>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <Border Style="{StaticResource TitleAccentBar}"/>
+                <TextBlock Text="米哈游相关" Style="{StaticResource PageTitleText}"/>
+            </StackPanel>
             <TextBlock Text="以下链接均在软件内打开，不会跳转外部浏览器。点击链接右上角 📌 可固定到左侧项目栏。"
                        Margin="0,6,0,0" FontSize="12"
                        Foreground="{DynamicResource TextSecondary}"/>

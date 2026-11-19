@@ -29,7 +29,7 @@ public partial class SettingsPage : UserControl
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         BuildThemePicker();
-        TxtVersion.Text = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.1.12";
+        TxtVersion.Text = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.1.13";
         TxtDataDir.Text = AppPaths.DataDir;
         // 初始化同步设置值时不触发写入事件（避免误存）
         _navInit = true;
@@ -411,7 +411,7 @@ public partial class SettingsPage : UserControl
         {
             _checkingUpdate = false;
             BtnUpdate.IsEnabled = true;
-            BtnUpdate.Content = "更新";
+            BtnUpdate.Content = "检查更新";
         }
     }
 

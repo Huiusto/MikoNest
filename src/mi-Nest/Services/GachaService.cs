@@ -20,7 +20,9 @@ public static class GachaService
         ["genshin"] = new[]
         {
             new GachaPoolDef("200", "常驻祈愿"),
-            new GachaPoolDef("301", "角色活动祈愿"),
+            // 米哈游接口按 gacha_type=301 查询时，会把 400（角色活动祈愿-2）的记录一起返回，
+            // Starward 的口径也是把 400 并入「角色活动祈愿」统计（共用保底计数）。
+            new GachaPoolDef("301", "角色活动祈愿", "400"),
             new GachaPoolDef("302", "武器活动祈愿"),
             new GachaPoolDef("500", "集录祈愿"),
             new GachaPoolDef("100", "新手祈愿"),
@@ -53,7 +55,7 @@ public static class GachaService
     public static string PoolName(string gameKey, string code)
     {
         var list = Pools.TryGetValue(gameKey, out var p) ? p : Array.Empty<GachaPoolDef>();
-        return list.FirstOrDefault(x => x.Code == code)?.Name ?? $"卡池 {code}";
+        return list.FirstOrDefault(x => x.Matches(code))?.Name ?? $"卡池 {code}";
     }
 
     /// <summary>千星奇域「颂愿」卡池（Starward 同款：1000 常驻颂愿 / 2000 活动颂愿）</summary>
@@ -281,7 +283,7 @@ public static class GachaService
 
                 var query = System.Web.HttpUtility.ParseQueryString(baseUri.Query);
                 query["gacha_type"] = gachaType;
-                query["page"] = page.ToString();
+                query["page"] = "1"; // 只用 end_id 游标翻页，混用 page 会让服务端跳记录
                 query["size"] = "20";
                 query["end_id"] = endId;
                 query["lang"] = "zh-cn";
@@ -321,8 +323,10 @@ public static class GachaService
                 }
 
                 if (pageItems.Count == 0) break;
+                var newEnd = pageItems[^1].Id;
+                if (newEnd == endId) break; // 游标没前进，防止死循环
                 list.AddRange(pageItems);
-                endId = pageItems[^1].Id;
+                endId = newEnd;
                 if (pageItems.Count < 20) break;
                 page++;
             }
@@ -349,6 +353,17 @@ public static class GachaService
             if (!ok)
                 return (false, $"{pool.Name}：{msg}", all);
             all.AddRange(items);
+
+            // 合并编号（原神 400 = 角色活动祈愿-2）也要各自拉取一遍；
+            // 但接口按 301 查询时已经把 400 的记录带回，这时就不再重复请求。
+            foreach (var extra in pool.ExtraCodes)
+            {
+                if (items.Any(x => x.GachaType == extra)) continue;
+                var (ok2, msg2, items2) = await FetchPoolAsync(baseUrl, extra, gameKey);
+                if (!ok2)
+                    return (false, $"{pool.Name}：{msg2}", all);
+                all.AddRange(items2);
+            }
         }
 
         return (true, $"共 {all.Count} 条记录", all);

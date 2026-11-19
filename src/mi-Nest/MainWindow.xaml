@@ -1,4 +1,4 @@
-﻿<Window x:Class="MiNest.MainWindow"
+<Window x:Class="MiNest.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
@@ -11,7 +11,7 @@
         FontFamily="Segoe UI Variable Text, Microsoft YaHei UI">
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="118"/>
+            <ColumnDefinition Width="Auto"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
@@ -22,66 +22,120 @@
         <Border x:Name="BackdropVeil" Grid.ColumnSpan="2" Visibility="Collapsed"
                 IsHitTestVisible="False" Background="#4DFFF6F2"/>
 
-        <!-- ================= 左侧导航栏（毛玻璃感） ================= -->
-        <Border x:Name="SidebarBorder" Grid.Column="0" Background="{DynamicResource SidebarBg}"
+        <!-- ================= 左侧导航栏（毛玻璃感 + 纵向渐变） ================= -->
+        <Border x:Name="SidebarBorder" Grid.Column="0" Width="128" Background="{DynamicResource SidebarBg}"
                 BorderBrush="{DynamicResource NavBorder}" BorderThickness="0,0,1,0">
             <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-
-                <!-- Logo + 名称 -->
-                <StackPanel Grid.Row="0" Margin="0,22,0,14" HorizontalAlignment="Center">
-                    <Border Width="54" Height="54" CornerRadius="14"
-                            Background="{DynamicResource CardBg}"
-                            BorderBrush="{DynamicResource CardBorder}" BorderThickness="1"
-                            Effect="{DynamicResource CardShadow}">
-                        <Image x:Name="LogoImage" Source="Assets/logo.png" Width="44" Height="44"
-                               Margin="5" Stretch="Uniform"/>
-                    </Border>
-                    <TextBlock Text="mi-Nest" FontSize="13.5" FontWeight="Bold"
-                               Foreground="{DynamicResource SidebarFg}"
-                               HorizontalAlignment="Center" Margin="0,9,0,0"/>
-                </StackPanel>
-
-                <!-- 网页：向后 / 向前 / 刷新（胶囊按钮组） -->
-                <Border Grid.Row="1" HorizontalAlignment="Center" Margin="0,0,0,12"
-                        Background="{DynamicResource NavHoverBg}" CornerRadius="11" Padding="5,4">
-                    <StackPanel Orientation="Horizontal">
-                        <Button x:Name="BtnBack" Width="30" Height="30" Padding="0" FontFamily="Segoe MDL2 Assets"
-                                FontSize="12.5" Content="&#xE72B;" ToolTip="后退" Click="BtnBack_Click" IsEnabled="False"/>
-                        <Button x:Name="BtnForward" Width="30" Height="30" Padding="0" Margin="4,0,0,0"
-                                FontFamily="Segoe MDL2 Assets" FontSize="12.5" Content="&#xE72A;"
-                                ToolTip="向前" Click="BtnForward_Click" IsEnabled="False"/>
-                        <Button x:Name="BtnRefresh" Width="30" Height="30" Padding="0" Margin="4,0,0,0"
-                                FontFamily="Segoe MDL2 Assets" FontSize="12.5" Content="&#xE72C;"
-                                ToolTip="刷新" Click="BtnRefresh_Click" IsEnabled="False"/>
-                    </StackPanel>
+                <!-- 纵向明暗渐变，增加层次 -->
+                <Border IsHitTestVisible="False">
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                            <GradientStop Color="#1AFFFFFF" Offset="0"/>
+                            <GradientStop Color="#00FFFFFF" Offset="0.35"/>
+                            <GradientStop Color="#14000000" Offset="1"/>
+                        </LinearGradientBrush>
+                    </Border.Background>
                 </Border>
 
-                <!-- 中间导航项（固定排布，不做上下滑动；顺序可在 设置-管理项目栏 调整） -->
-                <StackPanel x:Name="NavMiddlePanel" Grid.Row="2" VerticalAlignment="Top" ClipToBounds="True"
-                            Margin="0,0,0,0"/>
+                <!-- 右侧主题色发丝线，收边更利落 -->
+                <Border Width="2" HorizontalAlignment="Right" IsHitTestVisible="False"
+                        Opacity="0.30" Background="{DynamicResource Accent}"/>
 
-                <!-- 底部：账号 / 设置 -->
-                <StackPanel Grid.Row="3" Margin="0,0,0,16">
-                    <RadioButton x:Name="NavAccount" Style="{StaticResource SidebarNavItem}" GroupName="nav"
-                                 Content="&#xE77B;" Tag="账号" Checked="Nav_Checked"
-                                 svc:LocalizationService.Key="nav_account"
-                                 AutomationProperties.Name="账号"/>
-                    <RadioButton x:Name="NavSettings" Style="{StaticResource SidebarNavItem}" GroupName="nav"
-                                 Content="&#xE713;" Tag="设置" Checked="Nav_Checked"
-                                 svc:LocalizationService.Key="nav_settings"
-                                 AutomationProperties.Name="设置"/>
-                </StackPanel>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Logo + 名称 -->
+                    <StackPanel x:Name="LogoBox" Grid.Row="0" Margin="0,20,0,14" HorizontalAlignment="Center"
+                                Cursor="Hand" ToolTip="点击折叠 / 展开侧栏"
+                                MouseLeftButtonUp="LogoBox_MouseLeftButtonUp">
+                        <Grid Width="58" Height="58">
+                            <Border CornerRadius="16" Background="{DynamicResource Accent}">
+                                <Border.Effect>
+                                    <DropShadowEffect BlurRadius="18" ShadowDepth="3" Direction="270"
+                                                      Opacity="0.22" Color="#000000"/>
+                                </Border.Effect>
+                            </Border>
+                            <Border CornerRadius="16" IsHitTestVisible="False">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                        <GradientStop Color="#40FFFFFF" Offset="0"/>
+                                        <GradientStop Color="#00FFFFFF" Offset="0.6"/>
+                                        <GradientStop Color="#22000000" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                            </Border>
+                            <Border CornerRadius="14" Background="{DynamicResource CardBg}" Margin="4">
+                                <Image x:Name="LogoImage" Source="Assets/logo.png" Width="40" Height="40"
+                                       Stretch="Uniform"/>
+                            </Border>
+                        </Grid>
+                        <TextBlock x:Name="TxtSidebarName" Text="mi-Nest" FontSize="14" FontWeight="Bold"
+                                   Foreground="{DynamicResource SidebarFg}"
+                                   HorizontalAlignment="Center" Margin="0,10,0,0"/>
+                        <TextBlock x:Name="TxtSidebarTag" Text="MIHOYO LAUNCHER" FontSize="8.5"
+                                   Foreground="{DynamicResource SidebarDim}"
+                                   HorizontalAlignment="Center" Margin="0,3,0,0"
+                                   Opacity="0.8"/>
+                    </StackPanel>
+
+                    <!-- 网页：向后 / 向前 / 刷新（胶囊按钮组） -->
+                    <Border x:Name="NavHistoryBorder" Grid.Row="1" HorizontalAlignment="Center" Margin="0,0,0,12"
+                            Background="{DynamicResource NavHoverBg}" CornerRadius="12" Padding="5,4">
+                        <StackPanel Orientation="Horizontal">
+                            <Button x:Name="BtnBack" Width="30" Height="30" Padding="0" FontFamily="Segoe MDL2 Assets"
+                                    FontSize="12.5" Content="&#xE72B;" ToolTip="后退" Click="BtnBack_Click"
+                                    Style="{StaticResource IconButton}" IsEnabled="False"/>
+                            <Button x:Name="BtnForward" Width="30" Height="30" Padding="0" Margin="4,0,0,0"
+                                    FontFamily="Segoe MDL2 Assets" FontSize="12.5" Content="&#xE72A;"
+                                    ToolTip="向前" Click="BtnForward_Click"
+                                    Style="{StaticResource IconButton}" IsEnabled="False"/>
+                            <Button x:Name="BtnRefresh" Width="30" Height="30" Padding="0" Margin="4,0,0,0"
+                                    FontFamily="Segoe MDL2 Assets" FontSize="12.5" Content="&#xE72C;"
+                                    ToolTip="刷新" Click="BtnRefresh_Click"
+                                    Style="{StaticResource IconButton}" IsEnabled="False"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 导航项：紧凑一簇，不再拉满整个侧栏高度 -->
+                    <StackPanel Grid.Row="2" VerticalAlignment="Top" Margin="0,0,0,0">
+                        <StackPanel x:Name="NavMiddlePanel" ClipToBounds="True"/>
+                    </StackPanel>
+
+                    <!-- 账号 / 设置：固定在侧栏底部 -->
+                    <StackPanel Grid.Row="3" VerticalAlignment="Bottom" Margin="0,0,0,14">
+                        <Border x:Name="NavDivider" Height="1" Margin="14,0,14,8"
+                                Background="{DynamicResource NavBorder}" Opacity="0.55"/>
+                        <RadioButton x:Name="NavAccount" Style="{StaticResource SidebarNavItem}" GroupName="nav"
+                                     Content="&#xE77B;" Tag="账号" Checked="Nav_Checked"
+                                     svc:LocalizationService.Key="nav_account"
+                                     AutomationProperties.Name="账号"/>
+                        <RadioButton x:Name="NavSettings" Style="{StaticResource SidebarNavItem}" GroupName="nav"
+                                     Content="&#xE713;" Tag="设置" Checked="Nav_Checked"
+                                     svc:LocalizationService.Key="nav_settings"
+                                     AutomationProperties.Name="设置"/>
+                    </StackPanel>
+                </Grid>
             </Grid>
         </Border>
 
         <!-- ================= 内容区 ================= -->
-        <Grid Grid.Column="1">
+        <Grid Grid.Column="1" ClipToBounds="True">
+            <!-- 顶部一层极淡的主题色光晕，向下淡出，保持干净 -->
+            <Border IsHitTestVisible="False" Height="280" VerticalAlignment="Top"
+                    Background="{DynamicResource AccentSoft}" Opacity="0.35">
+                <Border.OpacityMask>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                        <GradientStop Color="#FF000000" Offset="0"/>
+                        <GradientStop Color="#00000000" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.OpacityMask>
+            </Border>
+
             <ContentControl x:Name="PageHost"/>
 
             <!-- WebView2 宿主（社区 / 视频 / 站内网页共用，登录态持久化） -->

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Win32;
@@ -42,6 +43,7 @@ public partial class MainWindow : Window
     private readonly Dictionary<string, RadioButton> _navRbs = new();
     private readonly Dictionary<string, UserControl> _nativePages = new();
     private bool _switching;
+    private bool _navCompact;
     private string? _pendingUrl;
     private bool _pendingVideoFeed;
     private bool _videoBridgeReady;
@@ -430,6 +432,36 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>点击左上角 Logo：折叠 / 展开侧栏（折叠后只保留图标）</summary>
+    private void LogoBox_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        ToggleSidebar();
+    }
+
+    private void ToggleSidebar()
+    {
+        _navCompact = !_navCompact;
+
+        double from = SidebarBorder.ActualWidth > 0 ? SidebarBorder.ActualWidth : (_navCompact ? 128 : 74);
+        double to = _navCompact ? 74 : 128;
+        var anim = new DoubleAnimation(from, to, TimeSpan.FromMilliseconds(220))
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+        };
+        SidebarBorder.BeginAnimation(WidthProperty, anim);
+
+        TxtSidebarName.Visibility = _navCompact ? Visibility.Collapsed : Visibility.Visible;
+        TxtSidebarTag.Visibility = _navCompact ? Visibility.Collapsed : Visibility.Visible;
+        NavHistoryBorder.Visibility = _navCompact ? Visibility.Collapsed : Visibility.Visible;
+        NavDivider.Visibility = _navCompact ? Visibility.Collapsed : Visibility.Visible;
+
+        foreach (var rb in _navRbs.Values) NavUi.SetCompact(rb, _navCompact);
+        NavUi.SetCompact(NavAccount, _navCompact);
+        NavUi.SetCompact(NavSettings, _navCompact);
+
+        LogoBox.ToolTip = _navCompact ? "点击展开侧栏" : "点击折叠侧栏";
+    }
+
     private RadioButton MakeNavRb(string icon, string tag, string display)
     {
         var rb = new RadioButton
@@ -783,6 +815,18 @@ public partial class MainWindow : Window
             _switching = false;
         }
         UpdateNavButtons();
+    }
+
+    /// <summary>页面切换时的淡入 + 轻微上移，避免生硬跳变</summary>
+    private void AnimatePageIn(UIElement element)
+    {
+        element.Opacity = 0;
+        var tt = new TranslateTransform(0, 10);
+        element.RenderTransform = tt;
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        var dur = TimeSpan.FromMilliseconds(240);
+        element.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, dur) { EasingFunction = ease });
+        tt.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(10, 0, dur) { EasingFunction = ease });
     }
 
     private void ShowWeb(string url)
@@ -1229,4 +1273,15 @@ public partial class MainWindow : Window
 
     private static long GetAid(System.Text.Json.JsonElement doc, string name = "aid")
         => doc.TryGetProperty(name, out var v) && v.TryGetInt64(out var n) ? n : 0;
+}
+/// <summary>侧栏折叠态附加属性（导航项模板据此隐藏文字）</summary>
+public static class NavUi
+{
+    public static readonly DependencyProperty CompactProperty =
+        DependencyProperty.RegisterAttached("Compact", typeof(bool), typeof(NavUi),
+            new FrameworkPropertyMetadata(false));
+
+    public static void SetCompact(DependencyObject d, bool value) => d.SetValue(CompactProperty, value);
+
+    public static bool GetCompact(DependencyObject d) => (bool)d.GetValue(CompactProperty);
 }

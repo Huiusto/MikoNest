@@ -218,7 +218,7 @@ public partial class GachaPage : UserControl
 
         foreach (var pool in pools)
         {
-            var items = all.Where(x => x.GachaType == pool.Code).ToList();
+            var items = all.Where(x => pool.Matches(x.GachaType)).ToList();
             // 新手池只有真的有记录时才显示，避免一排空列
             if (pool.Code is "100" or "2" && items.Count == 0) continue;
             var col = BuildColumn(pool, items);
@@ -310,13 +310,14 @@ public partial class GachaPage : UserControl
         {
             Width = 262,
             Margin = new Thickness(0, 0, 10, 0),
-            CornerRadius = new CornerRadius(14),
+            CornerRadius = new CornerRadius(16),
             BorderThickness = new Thickness(1),
-            Padding = new Thickness(14, 12, 14, 12),
+            Padding = new Thickness(16, 14, 16, 14),
         };
         col.Card = root;
         root.SetResourceReference(Border.BackgroundProperty, "CardBg");
         root.SetResourceReference(Border.BorderBrushProperty, "CardBorder");
+        root.Effect = (System.Windows.Media.Effects.Effect)Application.Current.Resources["CardShadow"];
 
         var grid = new Grid();
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -335,6 +336,22 @@ public partial class GachaPage : UserControl
             Margin = new Thickness(0, 0, 0, 10),
         };
         grid.Children.Add(accent);
+
+        // 顶部淡彩渐变，给卡片一点氛围
+        var washColor = (Color)ColorConverter.ConvertFromString(accentHex);
+        var wash = new Border
+        {
+            Height = 96,
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(-16, -14, -16, 0),
+            IsHitTestVisible = false,
+            CornerRadius = new CornerRadius(16),
+        };
+        wash.Background = new LinearGradientBrush(
+            Color.FromArgb(38, washColor.R, washColor.G, washColor.B),
+            Color.FromArgb(0, washColor.R, washColor.G, washColor.B), 90);
+        Grid.SetRowSpan(wash, 3);
+        grid.Children.Add(wash);
 
         // 标题 + 总数
         var headGrid = new Grid { Margin = new Thickness(0, 0, 0, 2) };
@@ -507,7 +524,7 @@ public partial class GachaPage : UserControl
 
         foreach (var pool in GachaService.BeyondPools)
         {
-            var items = all.Where(x => x.GachaType == pool.Code).ToList();
+            var items = all.Where(x => pool.Matches(x.GachaType)).ToList();
             var col = BuildBeyondColumn(pool, items);
             _beyondColumns.Add(col);
             BeyondPanel.Children.Add(col.Root);
@@ -589,13 +606,14 @@ public partial class GachaPage : UserControl
         {
             Width = 460,
             Margin = new Thickness(0, 0, 10, 0),
-            CornerRadius = new CornerRadius(14),
+            CornerRadius = new CornerRadius(16),
             BorderThickness = new Thickness(1),
-            Padding = new Thickness(16, 14, 16, 14),
+            Padding = new Thickness(18, 16, 18, 16),
         };
         col.Card = root;
         root.SetResourceReference(Border.BackgroundProperty, "CardBg");
         root.SetResourceReference(Border.BorderBrushProperty, "CardBorder");
+        root.Effect = (System.Windows.Media.Effects.Effect)Application.Current.Resources["CardShadow"];
 
         var grid = new Grid();
         for (var i = 0; i < 5; i++) grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -610,6 +628,21 @@ public partial class GachaPage : UserControl
             Margin = new Thickness(0, 0, 0, 10),
         };
         grid.Children.Add(accent);
+
+        var washColor = (Color)ColorConverter.ConvertFromString(accentHex);
+        var wash = new Border
+        {
+            Height = 96,
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(-18, -16, -18, 0),
+            IsHitTestVisible = false,
+            CornerRadius = new CornerRadius(16),
+        };
+        wash.Background = new LinearGradientBrush(
+            Color.FromArgb(38, washColor.R, washColor.G, washColor.B),
+            Color.FromArgb(0, washColor.R, washColor.G, washColor.B), 90);
+        Grid.SetRowSpan(wash, 3);
+        grid.Children.Add(wash);
 
         var headGrid = new Grid { Margin = new Thickness(0, 0, 0, 2) };
         headGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -760,7 +793,7 @@ public partial class GachaPage : UserControl
         pityRow.Children.Add(bg);
         var label = new TextBlock
         {
-            Text = "已垫",
+            Text = col.Pending > 90 ? "已垫（日志缺口）" : "已垫",
             FontSize = 12.5,
             FontWeight = FontWeights.SemiBold,
             Foreground = Brush("#FFFFFF"),
@@ -942,7 +975,7 @@ public partial class GachaPage : UserControl
 
             var label = new TextBlock
             {
-                Text = "已垫",
+                Text = col.Pending > 90 ? "已垫（日志缺口）" : "已垫",
                 FontSize = 12,
                 FontWeight = FontWeights.SemiBold,
                 Foreground = Brush("#FFFFFF"),

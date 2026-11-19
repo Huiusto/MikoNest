@@ -2,9 +2,10 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <!-- 页面背景（苹果式浅灰渐变） -->
-    <LinearGradientBrush x:Key="PageBg" StartPoint="0,0" EndPoint="0,1">
-        <GradientStop Color="#F8F8FA" Offset="0"/>
-        <GradientStop Color="#F0F0F4" Offset="1"/>
+    <LinearGradientBrush x:Key="PageBg" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#FAFBFD" Offset="0"/>
+        <GradientStop Color="#F2F3F8" Offset="0.45"/>
+        <GradientStop Color="#E9EBF2" Offset="1"/>
     </LinearGradientBrush>
 
     <!-- 侧边栏（半透明毛玻璃感，透出背景渐变） -->
