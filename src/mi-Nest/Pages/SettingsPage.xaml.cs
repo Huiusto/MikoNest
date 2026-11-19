@@ -29,7 +29,7 @@ public partial class SettingsPage : UserControl
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         BuildThemePicker();
-        TxtVersion.Text = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.1.8";
+        TxtVersion.Text = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.1.9";
         TxtDataDir.Text = AppPaths.DataDir;
         // 初始化同步设置值时不触发写入事件（避免误存）
         _navInit = true;
@@ -394,7 +394,7 @@ public partial class SettingsPage : UserControl
             Process.Start(new ProcessStartInfo
             {
                 FileName = path,
-                Arguments = "/S",
+                Arguments = BuildInstallerArgs(),
                 UseShellExecute = true,
             });
             await System.Threading.Tasks.Task.Delay(1200);
@@ -411,6 +411,27 @@ public partial class SettingsPage : UserControl
             _checkingUpdate = false;
             BtnUpdate.IsEnabled = true;
             BtnUpdate.Content = "更新";
+        }
+    }
+
+    /// <summary>
+    /// 静默安装参数：便携版就地覆盖当前目录，已安装版沿用原来的安装目录。
+    /// /D 必须是最后一个参数，且不能带引号。
+    /// </summary>
+    private string BuildInstallerArgs()
+    {
+        try
+        {
+            var dir = AppContext.BaseDirectory.TrimEnd('\\', '/');
+            var pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            var pf86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+            var inProgramFiles = dir.StartsWith(pf, StringComparison.OrdinalIgnoreCase)
+                                 || dir.StartsWith(pf86, StringComparison.OrdinalIgnoreCase);
+            return inProgramFiles ? "/S" : "/S /D=" + dir;
+        }
+        catch
+        {
+            return "/S";
         }
     }
 
@@ -577,4 +598,5 @@ public partial class SettingsPage : UserControl
         _main?.ApplyCloseBehavior();
     }
 }
+
 

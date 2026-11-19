@@ -20,7 +20,7 @@ RequestExecutionLevel admin
 SetCompressor /SOLID lzma
 
 !define APP_NAME "mi-Nest"
-!define APP_VERSION "0.1.8"
+!define APP_VERSION "0.1.9"
 !define APP_PUBLISHER "mi-Nest Contributors"
 
 ; ---------------- 图标 ----------------
