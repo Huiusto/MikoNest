@@ -2,406 +2,426 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
+using System.Text.Json;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Animation;
-using System.Windows.Media.Imaging;
+using Microsoft.Web.WebView2.Core;
 using MiNest.Models;
 using MiNest.Services;
 
 namespace MiNest.Pages;
 
 /// <summary>
-/// 启动页（仿 Starward，简洁版）：
-/// 背景跟随所选游戏切换（四款游戏各有专属官方宣传图），顶部「米哈云游 / 全部游戏」，
-/// 底部预约游戏 + 右下角「定位游戏→开始游戏」；左侧竖排圆点切换器（鼠标靠近浮现、离开消失）。
+/// 启动页（仿 Starward）：整页由内嵌 HTML（WebView2）渲染。
+/// 官方壁纸（含 .webm 动态壁纸）由 Chromium 直接播放，因此动态壁纸真正会动；
+/// 页面上没有整屏蒙版，左侧靠近边缘浮现「上一张 / 圆点 / 下一张 / 保存壁纸 / 暂停动态」按钮组。
+/// 每款游戏的「开始游戏 / 游戏启动中」各自独立计时，游戏进程退出后自动恢复。
 /// </summary>
 public partial class LaunchPage : UserControl
 {
     private readonly MainWindow _main;
-    private string _selectedKey;
+    private string _selectedKey = "genshin";
     private string? _locatedDir;
-    private readonly HashSet<string> _runningGames = new();   // 正在运行的游戏（按键名分别记录）
-    private readonly List<(Button Dot, int Index)> _dots = new();
-    private List<LauncherBackgroundService.BackgroundItem> _bgItems = new();  // 当前游戏官方背景列表
-    private int _bgIndex;                                    // 当前显示第几张官方背景
-    private string? _bgId;                                    // 当前显示的官方背景版本 ID
+    private readonly HashSet<string> _runningGames = new();
+    private List<LauncherBackgroundService.BackgroundItem> _bgItems = new();
+    private int _bgIndex;
+    private bool _paused;
+    private bool _preparing;
     private LauncherBackgroundService.PreDownloadInfo? _preDownload;
+    private bool _webReady;
+    private readonly string _rootDir = AppPaths.DataDir;
 
     public LaunchPage(MainWindow main)
     {
         InitializeComponent();
         _main = main;
-        _selectedKey = "genshin";
         Loaded += OnLoaded;
-        IsVisibleChanged += OnPageVisibleChanged;
-        Unloaded += (_, _) => StopVideo();
     }
 
-    private void OnLoaded(object sender, RoutedEventArgs e)
+    private async void OnLoaded(object sender, RoutedEventArgs e)
     {
-        AutoSelectLocatedGame();
-        ApplyBackground();
-        BuildAllGamesMenu();
-        BuildDots();
-        RefreshState();
+        if (_webReady) { PushState(); return; }
+        await InitWebAsync();
     }
 
-    /// <summary>打开软件时自动选中已定位的游戏：哪个游戏被定位了，启动页就显示哪个游戏的启动画面（背景）</summary>
+    // ---------- WebView2 初始化 ----------
+
+    private async Task InitWebAsync()
+    {
+        try
+        {
+            Directory.CreateDirectory(_rootDir);
+            PrepareHtmlFile();
+
+            var env = await CoreWebView2Environment.CreateAsync(null, Path.Combine(AppPaths.DataDir, "webview2-launch"));
+            await Web.EnsureCoreWebView2Async(env);
+
+            var s = Web.CoreWebView2.Settings;
+            s.AreDevToolsEnabled = false;
+            s.AreDefaultContextMenusEnabled = false;
+            s.IsStatusBarEnabled = false;
+            s.AreBrowserAcceleratorKeysEnabled = false;
+            s.IsZoomControlEnabled = false;
+            Web.DefaultBackgroundColor = System.Drawing.Color.FromArgb(255, 11, 13, 18);
+
+            Web.CoreWebView2.SetVirtualHostNameToFolderMapping(
+                "minest.local", _rootDir, CoreWebView2HostResourceAccessKind.Allow);
+            Web.CoreWebView2.WebMessageReceived += OnWebMessage;
+            Web.CoreWebView2.NavigationCompleted += async (_, __) =>
+            {
+                _webReady = true;
+                AutoSelectLocatedGame();
+                LoadBackgrounds(_selectedKey);
+                PushState();
+                RefreshPreDownload();
+                await EnsureCurrentVideoAsync();
+            };
+            Web.CoreWebView2.Navigate("https://minest.local/launch/launch.html");
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show("启动页初始化失败：" + ex.Message, "mi-Nest", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    /// <summary>把内置 launch.html 与兜底壁纸复制到缓存目录（虚拟域名 minest.local 指向该目录）</summary>
+    private void PrepareHtmlFile()
+    {
+        var launchDir = Path.Combine(_rootDir, "launch");
+        var assetDir = Path.Combine(launchDir, "assets");
+        Directory.CreateDirectory(assetDir);
+
+        CopyResource("Assets/Launch/launch.html", Path.Combine(launchDir, "launch.html"));
+
+        foreach (var name in new[] { "background.jpg", "bg_genshin.jpg", "bg_StarRail.jpg", "bg_zzz.jpg", "bg_bh3.jpg" })
+        {
+            var target = Path.Combine(assetDir, name);
+            if (!File.Exists(target)) CopyResource("Assets/" + name, target);
+        }
+    }
+
+    private static void CopyResource(string resourcePath, string targetPath)
+    {
+        try
+        {
+            using var stream = Application.GetResourceStream(new Uri("pack://application:,,,/" + resourcePath))?.Stream;
+            if (stream == null) return;
+            using var fs = File.Create(targetPath);
+            stream.CopyTo(fs);
+        }
+        catch
+        {
+            // 资源缺失时忽略，页面仍有自带兜底样式
+        }
+    }
+
+    // ---------- 状态推送 ----------
+
     private void AutoSelectLocatedGame()
     {
         var located = GameLocator.Games
-            .Where(g => (SettingsService.Settings.GamePaths.TryGetValue(g.Key, out var dp) && Directory.Exists(dp))
-                        || GameLocator.DetectInstallDir(g) != null)
+            .Where(g => IsLocated(g.Key))
             .Select(g => g.Key)
             .ToList();
         if (located.Count > 0 && !located.Contains(_selectedKey))
             _selectedKey = located[0];
     }
 
-    // ---------- 左侧圆点切换器 ----------
-
-    /// <summary>左侧圆点数量 = 当前游戏官方下发的背景数量（官方一版给几张就有几个点）</summary>
-    private void BuildDots()
+    private static bool IsLocated(string key)
     {
-        DotStack.Children.Clear();
-        _dots.Clear();
+        if (SettingsService.Settings.GamePaths.TryGetValue(key, out var p) && Directory.Exists(p)) return true;
+        return GameLocator.DetectInstallDir(GameLocator.Get(key)) != null;
+    }
 
-        var count = Math.Max(_bgItems.Count, 1);
-        for (var i = 0; i < count; i++)
+    private void PushState()
+    {
+        if (!_webReady) return;
+
+        var games = GameLocator.Games.Select(g => new
         {
-            var index = i;
-            var dot = new Button
+            key = g.Key,
+            name = g.Name,
+            located = IsLocated(g.Key),
+            running = _runningGames.Contains(g.Key),
+        }).ToList();
+
+        var items = _bgItems.Select(i => new
+        {
+            id = i.Id,
+            image = ToUrl(i.ImagePath),
+            video = ToUrl(i.VideoPath),
+        }).ToList();
+
+        var state = new
+        {
+            games,
+            selected = _selectedKey,
+            backgrounds = items,
+            index = _bgIndex,
+            paused = _paused,
+            custom = HasCustomBackground(_selectedKey),
+            customImage = HasCustomBackground(_selectedKey)
+                ? ToUrl(SettingsService.Settings.GameBackgrounds[_selectedKey])
+                : null,
+            preparing = _preparing,
+            preDownload = _preDownload == null ? null : new
             {
-                Style = (Style)FindResource("DotButtonStyle"),
-                ToolTip = count > 1 ? $"背景 {i + 1} / {count}" : "当前背景",
-                Tag = "inactive",
-            };
-            dot.SetValue(System.Windows.Automation.AutomationProperties.NameProperty, $"背景 {i + 1}");
-            dot.Click += (_, _) => SelectBackground(index);
-            DotStack.Children.Add(dot);
-            _dots.Add((dot, index));
-        }
-        UpdateDotStates();
+                text = $"预下载 {_preDownload.Version} · {FormatSize(_preDownload.SizeBytes)}",
+            },
+            hint = BuildHint(),
+        };
+
+        var json = JsonSerializer.Serialize(state);
+        _ = Web.CoreWebView2.ExecuteScriptAsync($"window.miNestInit({json});");
     }
 
-    private void UpdateDotStates()
+    private void PushPatch(string json)
     {
-        foreach (var (dot, index) in _dots)
-            dot.Tag = index == _bgIndex ? "active" : "inactive";
+        if (!_webReady) return;
+        _ = Web.CoreWebView2.ExecuteScriptAsync($"window.miNestUpdate({json});");
     }
 
-    /// <summary>点某个圆点：切到官方下发的第 N 张背景（选择了官方背景即清除该游戏的自定义图）</summary>
-    private void SelectBackground(int index)
+    private void Toast(string text)
+    {
+        if (!_webReady) return;
+        var json = JsonSerializer.Serialize(text);
+        _ = Web.CoreWebView2.ExecuteScriptAsync($"window.miNestToast({json});");
+    }
+
+    private string BuildHint()
+    {
+        var g = GameLocator.Get(_selectedKey);
+        _locatedDir = ResolveDir();
+        if (_runningGames.Contains(_selectedKey)) return "游戏运行中，可直接开始其它游戏；游戏退出后此按钮自动恢复。";
+        if (_locatedDir == null) return "点击「获取游戏」会弹出安装窗口（安装路径 / 语言 / 磁盘空间），确认后由官方启动器完成下载安装。";
+        var exe = GameLocator.FindExe(_locatedDir, g);
+        return exe == null
+            ? $"已定位目录，但未找到主程序（{string.Join(" / ", g.ExeNames)}）"
+            : "已定位：" + _locatedDir;
+    }
+
+    /// <summary>本地文件转成虚拟域名 URL（minest.local 映射到数据目录）</summary>
+    private string? ToUrl(string? absPath)
+    {
+        if (string.IsNullOrWhiteSpace(absPath)) return null;
+        var full = Path.GetFullPath(absPath).Replace('\\', '/');
+        var root = Path.GetFullPath(_rootDir).Replace('\\', '/').TrimEnd('/');
+        if (full.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+            return "https://minest.local" + full.Substring(root.Length);
+        return null;
+    }
+
+    // ---------- 壁纸列表 ----------
+
+    /// <summary>读取当前游戏官方背景列表；官方一版给几张，左侧就有几个圆点</summary>
+    private void LoadBackgrounds(string key)
+    {
+        var cached = LauncherBackgroundService.GetCached(key);
+        _bgItems = cached?.Items ?? new List<LauncherBackgroundService.BackgroundItem>();
+        _bgIndex = SettingsService.Settings.GameBackgroundIndex.TryGetValue(key, out var saved)
+            ? Math.Clamp(saved, 0, Math.Max(0, _bgItems.Count - 1))
+            : 0;
+        _paused = false;
+        _ = RefreshOfficialAsync(key);
+    }
+
+    private async Task RefreshOfficialAsync(string key)
+    {
+        var meta = await LauncherBackgroundService.RefreshAsync(key);
+        if (meta == null || key != _selectedKey || HasCustomBackground(key)) return;
+
+        var oldIndex = _bgIndex;
+        _bgItems = meta.Items;
+        _bgIndex = SettingsService.Settings.GameBackgroundIndex.TryGetValue(key, out var saved)
+            ? Math.Clamp(saved, 0, Math.Max(0, _bgItems.Count - 1))
+            : Math.Clamp(oldIndex, 0, Math.Max(0, _bgItems.Count - 1));
+        PushState();
+    }
+
+    private static bool HasCustomBackground(string key)
+        => SettingsService.Settings.GameBackgrounds.TryGetValue(key, out var p) && File.Exists(p);
+
+    private async Task SelectBackgroundAsync(int index, bool save = true)
     {
         if (index < 0) return;
         SettingsService.Settings.GameBackgrounds.Remove(_selectedKey);
-        SettingsService.Settings.CustomBackground = null;   // 旧版全局自定义背景一并清除
         SettingsService.Settings.GameBackgroundIndex[_selectedKey] = index;
         SettingsService.Save();
 
         _bgIndex = index;
-        BtnResetBg.Visibility = Visibility.Collapsed;
-        ShowOfficialBackground();
-        UpdateDotStates();
+        _paused = false;
+
+        // 动态壁纸体积大，切到这张时才下载
+        var item = index >= 0 && index < _bgItems.Count ? _bgItems[index] : null;
+        if (item != null && item.VideoPath == null && !string.IsNullOrWhiteSpace(item.VideoUrl))
+        {
+            _preparing = true;
+            PushState();
+            await LauncherBackgroundService.EnsureVideoAsync(_selectedKey, item.Id);
+            _preparing = false;
+        }
+        PushState();
     }
 
-    /// <summary>鼠标靠近内容区左边缘（约 130px 内）时浮现圆点切换器，移开后淡出。</summary>
-    private void RootGrid_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    private async Task EnsureCurrentVideoAsync()
     {
-        var pos = e.GetPosition(this);
-        if (pos.X <= 140)
+        var item = _bgIndex >= 0 && _bgIndex < _bgItems.Count ? _bgItems[_bgIndex] : null;
+        if (item == null || item.VideoPath != null || string.IsNullOrWhiteSpace(item.VideoUrl)) return;
+        _preparing = true;
+        PushState();
+        await LauncherBackgroundService.EnsureVideoAsync(_selectedKey, item.Id);
+        _preparing = false;
+        PushState();
+    }
+
+    // ---------- 页面消息 ----------
+
+    private async void OnWebMessage(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
+    {
+        string type;
+        try
         {
-            if (DotPanel.Visibility != Visibility.Visible)
+            using var doc = JsonDocument.Parse(e.WebMessageAsJson);
+            type = doc.RootElement.GetProperty("type").GetString() ?? "";
+        }
+        catch
+        {
+            return;
+        }
+
+        try
+        {
+            switch (type)
             {
-                DotPanel.Visibility = Visibility.Visible;
-                DotPanel.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(150)));
+                case "ready":
+                    PushState();
+                    break;
+                case "selectGame":
+                    {
+                        var key = ReadString(e.WebMessageAsJson, "key");
+                        if (!string.IsNullOrEmpty(key) && key != _selectedKey)
+                        {
+                            _selectedKey = key;
+                            LoadBackgrounds(key);
+                            PushState();
+                        }
+                        break;
+                    }
+                case "bg":
+                    await SelectBackgroundAsync((int)ReadNumber(e.WebMessageAsJson, "index"));
+                    break;
+                case "bgNext":
+                    if (_bgItems.Count > 0) await SelectBackgroundAsync((_bgIndex + 1) % _bgItems.Count);
+                    break;
+                case "bgPrev":
+                    if (_bgItems.Count > 0) await SelectBackgroundAsync((_bgIndex - 1 + _bgItems.Count) % _bgItems.Count);
+                    break;
+                case "pauseToggle":
+                    _paused = !_paused;
+                    PushPatch($"{{\"paused\":{(_paused ? "true" : "false")}}}");
+                    break;
+                case "saveBg":
+                    SaveCurrentBackground();
+                    break;
+                case "changeBg":
+                    ChangeCustomBackground();
+                    break;
+                case "resetBg":
+                    SettingsService.Settings.GameBackgrounds.Remove(_selectedKey);
+                    SettingsService.Settings.CustomBackground = null;
+                    SettingsService.Save();
+                    LoadBackgrounds(_selectedKey);
+                    PushState();
+                    break;
+                case "start":
+                    await StartGameAsync();
+                    break;
+                case "locate":
+                    PickFolder();
+                    break;
+                case "install":
+                    await InstallGameAsync();
+                    break;
+                case "predownload":
+                    ShowPreDownloadDialog();
+                    break;
+                case "mhyy":
+                    _main.OpenInApp("https://mhyy.mihoyo.com/");
+                    break;
+                case "reserve":
+                    {
+                        var url = ReadString(e.WebMessageAsJson, "url");
+                        if (!string.IsNullOrEmpty(url)) _main.OpenInApp(url);
+                        break;
+                    }
             }
         }
-        else if (DotPanel.Visibility == Visibility.Visible)
+        catch (Exception ex)
         {
-            var anim = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(150));
-            anim.Completed += (_, _) => DotPanel.Visibility = Visibility.Collapsed;
-            DotPanel.BeginAnimation(OpacityProperty, anim);
+            Toast("操作失败：" + ex.Message);
         }
     }
 
-    // 鼠标完全离开本页面时隐藏圆点（防止从左侧移出窗口后残留）
-    private void OnRootMouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
+    private static string? ReadString(string json, string prop)
+        => JsonDocument.Parse(json).RootElement.TryGetProperty(prop, out var v) && v.ValueKind == JsonValueKind.String
+            ? v.GetString() : null;
+
+    private static double ReadNumber(string json, string prop)
+        => JsonDocument.Parse(json).RootElement.TryGetProperty(prop, out var v) && v.ValueKind == JsonValueKind.Number
+            ? v.GetDouble() : 0;
+
+    // ---------- 壁纸保存 / 自定义 ----------
+
+    private void SaveCurrentBackground()
     {
-        if (DotPanel.Visibility == Visibility.Visible)
+        var item = _bgIndex >= 0 && _bgIndex < _bgItems.Count ? _bgItems[_bgIndex] : null;
+        var src = item?.VideoPath ?? item?.ImagePath;
+        if (src == null || !File.Exists(src))
         {
-            DotPanel.Visibility = Visibility.Collapsed;
-            DotPanel.BeginAnimation(OpacityProperty, null);
-        }
-    }
-
-    // ---------- 背景 ----------
-
-    private void ApplyBackground()
-    {
-        // 每款游戏可单独设置自定义背景；未设置时显示官方启动器下发的当前版本背景
-        var key = _selectedKey;
-        var cached = LauncherBackgroundService.GetCached(key);
-        _bgItems = cached?.Items ?? new List<LauncherBackgroundService.BackgroundItem>();
-
-        var custom = SettingsService.Settings.GameBackgrounds.TryGetValue(key, out var p) && File.Exists(p)
-            ? p
-            : null;
-        if (custom == null)
-            custom = SettingsService.Settings.CustomBackground; // 兼容旧版全局自定义背景
-        if (custom != null && File.Exists(custom))
-        {
-            StopVideo();
-            BgImage.Source = new BitmapImage(new Uri(custom));
-            BtnResetBg.Visibility = Visibility.Visible;
-            _bgId = null;
-            foreach (var (dot, _) in _dots) dot.Tag = "inactive";
-            BuildDots();          // 圆点仍按官方数量显示，点击即回到官方壁纸
-            foreach (var (dot, _) in _dots) dot.Tag = "inactive";
+            Toast("当前壁纸还没有下载完成，无法保存");
             return;
         }
-
-        BtnResetBg.Visibility = Visibility.Collapsed;
-
-        // 当前游戏记住上次选中的第几张背景（默认第一张 = 官方最新）
-        _bgIndex = SettingsService.Settings.GameBackgroundIndex.TryGetValue(key, out var saved)
-            ? Math.Clamp(saved, 0, Math.Max(0, _bgItems.Count - 1))
-            : 0;
-
-        BuildDots();
-        ShowOfficialBackground();
-
-        // 再后台向官方接口核对：版本更新后自动换成新背景（含动态背景）
-        _ = RefreshOfficialBackgroundAsync(key);
-    }
-
-    /// <summary>按 _bgIndex 显示官方背景（静态壁纸 + 动态视频按需下载播放）</summary>
-    private void ShowOfficialBackground()
-    {
-        if (_bgItems.Count == 0)
-        {
-            SetBundledBackground(_selectedKey);
-            StopVideo();
-            _bgId = null;
-            return;
-        }
-
-        _bgIndex = Math.Clamp(_bgIndex, 0, _bgItems.Count - 1);
-        var item = _bgItems[_bgIndex];
-        _bgId = item.Id;
-
-        if (item.ImagePath != null) SetImageFromFile(item.ImagePath);
-        else SetBundledBackground(_selectedKey);
-
-        StopVideo();
-        if (item.VideoPath != null) PlayVideo(item.VideoPath);
-        else _ = EnsureVideoPlayAsync(item);
-        UpdateDotStates();
-    }
-
-    /// <summary>动态背景视频体积较大，只有切到这一张时才下载，下载完自动播放</summary>
-    private async Task EnsureVideoPlayAsync(LauncherBackgroundService.BackgroundItem item)
-    {
-        if (string.IsNullOrWhiteSpace(item.VideoUrl)) return;
-        var path = await LauncherBackgroundService.EnsureVideoAsync(_selectedKey, item.Id);
-        if (path == null) return;
-        if (item.Id != _bgId) return;   // 等待期间用户已切到别的背景
-        PlayVideo(path);
-    }
-
-    /// <summary>向官方启动器接口拉取当前版本背景；若与本页显示的版本不同则切换</summary>
-    private async Task RefreshOfficialBackgroundAsync(string key)
-    {
-        var meta = await LauncherBackgroundService.RefreshAsync(key);
-        if (meta == null || key != _selectedKey) return;   // 等待期间已切换到别的游戏
-
-        // 用户为该游戏设置了自定义背景时，官方背景不覆盖
-        if (HasCustomBackground(key)) return;
-
-        var oldIndex = _bgIndex;
-        _bgItems = meta.Items;
-
-        _bgIndex = SettingsService.Settings.GameBackgroundIndex.TryGetValue(key, out var saved)
-            ? Math.Clamp(saved, 0, Math.Max(0, _bgItems.Count - 1))
-            : Math.Clamp(oldIndex, 0, Math.Max(0, _bgItems.Count - 1));
-
-        BuildDots();
-        ShowOfficialBackground();
-    }
-
-    private static bool HasCustomBackground(string key)
-    {
-        if (SettingsService.Settings.GameBackgrounds.TryGetValue(key, out var p) && File.Exists(p)) return true;
-        var old = SettingsService.Settings.CustomBackground;
-        return !SettingsService.Settings.GameBackgrounds.ContainsKey(key)
-               && !string.IsNullOrWhiteSpace(old) && File.Exists(old);
-    }
-
-    private void SetImageFromFile(string path)
-    {
         try
         {
-            var bmp = new BitmapImage();
-            bmp.BeginInit();
-            bmp.CacheOption = BitmapCacheOption.OnLoad;
-            bmp.UriSource = new Uri(path);
-            bmp.EndInit();
-            BgImage.Source = bmp;
+            var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "mi-Nest 壁纸");
+            Directory.CreateDirectory(dir);
+            var name = GameLocator.Get(_selectedKey).Name + "_" + Path.GetFileName(src);
+            File.Copy(src, Path.Combine(dir, name), true);
+            Toast("壁纸已保存到 图片\\mi-Nest 壁纸");
         }
-        catch
+        catch (Exception ex)
         {
-            SetBundledBackground(_selectedKey);
+            Toast("保存失败：" + ex.Message);
         }
     }
 
-    private void SetBundledBackground(string key)
-    {
-        try
-        {
-            // 内置兜底背景：星穹铁道使用 Assets/bg_StarRail.jpg，其余为 Assets/bg_{key}.jpg
-            var bgName = key == "starrail" ? "bg_StarRail.jpg" : $"bg_{key}.jpg";
-            BgImage.Source = new BitmapImage(new Uri($"pack://application:,,,/Assets/{bgName}"));
-        }
-        catch
-        {
-            BgImage.Source = new BitmapImage(new Uri("pack://application:,,,/Assets/background.jpg"));
-        }
-    }
-
-    // ---------- 动态背景（官方视频） ----------
-
-    private void PlayVideo(string path)
-    {
-        try
-        {
-            if (!File.Exists(path)) return;
-            BgVideo.Source = new Uri(path);
-            BgVideo.Position = TimeSpan.Zero;
-            BgVideo.Visibility = Visibility.Visible;
-            BgVideo.Play();
-        }
-        catch
-        {
-            BgVideo.Visibility = Visibility.Collapsed;
-        }
-    }
-
-    private void StopVideo()
-    {
-        try
-        {
-            BgVideo.Stop();
-            BgVideo.Source = null;
-        }
-        catch
-        {
-            // 忽略
-        }
-        BgVideo.Visibility = Visibility.Collapsed;
-    }
-
-    private void BgVideo_MediaEnded(object sender, RoutedEventArgs e)
-    {
-        // 循环播放动态背景（与 Starward 首页一致）
-        try
-        {
-            BgVideo.Position = TimeSpan.Zero;
-            BgVideo.Play();
-        }
-        catch
-        {
-            BgVideo.Visibility = Visibility.Collapsed;
-        }
-    }
-
-    private void BgVideo_MediaFailed(object sender, ExceptionRoutedEventArgs e)
-    {
-        // 当前系统缺少视频解码器（如未安装 VP9 扩展）时静默回落到静态壁纸
-        BgVideo.Visibility = Visibility.Collapsed;
-    }
-
-    /// <summary>页面不可见（切到其它页面/最小化）时暂停视频，回到本页再继续</summary>
-    private void OnPageVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
-    {
-        if (!IsVisible) BgVideo.Pause();
-        else if (BgVideo.Source != null) BgVideo.Play();
-    }
-
-    private void BtnChangeBg_Click(object sender, RoutedEventArgs e)
+    private void ChangeCustomBackground()
     {
         using var dlg = new System.Windows.Forms.OpenFileDialog
         {
             Title = $"选择「{GameLocator.Get(_selectedKey).Name}」启动页背景图",
-            Filter = "图片文件|*.png;*.jpg;*.jpeg;*.bmp;*.webp|所有文件|*.*",
+            Filter = "图片文件|*.png;*.jpg;*.jpeg;*.bmp;*.webp;*.gif|所有文件|*.*",
         };
-        if (dlg.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+        if (dlg.ShowDialog() != System.Windows.Forms.DialogResult.OK) return;
+
+        try
         {
-            SettingsService.Settings.GameBackgrounds[_selectedKey] = dlg.FileName;
+            var bgDir = LauncherBackgroundService.CacheDir;
+            Directory.CreateDirectory(bgDir);
+            var ext = Path.GetExtension(dlg.FileName);
+            var target = Path.Combine(bgDir, $"custom_{_selectedKey}{ext}");
+            File.Copy(dlg.FileName, target, true);
+            SettingsService.Settings.GameBackgrounds[_selectedKey] = target;
             SettingsService.Save();
-            ApplyBackground();
+            LoadBackgrounds(_selectedKey);
+            PushState();
         }
-    }
-
-    private void BtnResetBg_Click(object sender, RoutedEventArgs e)
-    {
-        SettingsService.Settings.GameBackgrounds.Remove(_selectedKey);
-        SettingsService.Settings.CustomBackground = null; // 一并清除旧版全局背景，回到该游戏专属官图
-        SettingsService.Save();
-        ApplyBackground();
-    }
-
-    // ---------- 全部游戏菜单 ----------
-
-    private void BuildAllGamesMenu()
-    {
-        AllGamesMenuPanel.Children.Clear();
-        foreach (var g in GameLocator.Games)
+        catch (Exception ex)
         {
-            var located = (SettingsService.Settings.GamePaths.TryGetValue(g.Key, out var dp) && Directory.Exists(dp))
-                          || GameLocator.DetectInstallDir(g) != null;
-
-            var btn = new Button
-            {
-                Tag = g.Key,
-                HorizontalContentAlignment = HorizontalAlignment.Left,
-                Padding = new Thickness(14, 7, 14, 7),
-                Margin = new Thickness(0, 2, 0, 2),
-            };
-            var sp = new StackPanel();
-            sp.Children.Add(new TextBlock
-            {
-                Text = g.Name,
-                FontSize = 13.5,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = (Brush)FindResource("TextPrimary"),
-            });
-            sp.Children.Add(new TextBlock
-            {
-                Text = located ? "● 已定位" : "○ 未定位",
-                FontSize = 10.5,
-                Margin = new Thickness(0, 2, 0, 0),
-                Foreground = located ? (Brush)FindResource("Success") : (Brush)FindResource("Warning"),
-            });
-            btn.Content = sp;
-            btn.Click += (_, _) =>
-            {
-                BtnAllGames.IsChecked = false;
-                SelectGame(g.Key);
-            };
-            AllGamesMenuPanel.Children.Add(btn);
+            Toast("设置背景失败：" + ex.Message);
         }
-    }
-
-    private void SelectGame(string key)
-    {
-        if (key == _selectedKey) return;
-        _selectedKey = key;
-        ApplyBackground();
-        UpdateDotStates();
-        RefreshState();
     }
 
     // ---------- 定位 / 启动 ----------
@@ -421,82 +441,98 @@ public partial class LaunchPage : UserControl
         return detected;
     }
 
-    private void RefreshState()
+    private void PickFolder()
+    {
+        using var dlg = new System.Windows.Forms.FolderBrowserDialog
+        {
+            Description = $"请选择「{GameLocator.Get(_selectedKey).Name}」的安装目录（包含 {string.Join(" / ", GameLocator.Get(_selectedKey).ExeNames)} 的文件夹）",
+            UseDescriptionForTitle = true,
+        };
+        if (dlg.ShowDialog() != System.Windows.Forms.DialogResult.OK) return;
+
+        SettingsService.Settings.GamePaths[_selectedKey] = dlg.SelectedPath;
+        SettingsService.Save();
+        PushState();
+    }
+
+    private async Task StartGameAsync()
     {
         var g = GameLocator.Get(_selectedKey);
         _locatedDir = ResolveDir();
         var exe = _locatedDir != null ? GameLocator.FindExe(_locatedDir, g) : null;
 
-        GameLabel.Text = $"当前游戏：{g.Name}";
-
-        if (_runningGames.Contains(_selectedKey))
+        if (exe == null)
         {
-            // 该游戏运行中：按钮保持「游戏启动中」，直到这款游戏的进程退出
-            BtnMain.Content = "游戏启动中";
-            BtnMain.IsEnabled = false;
-            LocateHint.Text = _locatedDir != null ? $"已定位：{_locatedDir}" : LocateHint.Text;
+            if (_locatedDir == null) { await InstallGameAsync(); }
+            else Toast("未在目录中找到游戏主程序，请点击「定位游戏」重新选择");
             return;
         }
+        if (_runningGames.Contains(_selectedKey)) return;
 
-        // 当前游戏没在运行：按钮恢复可点击（切到其它游戏时不能继承上一款游戏的置灰）
-        BtnMain.IsEnabled = true;
-
-        if (exe != null)
-        {
-            BtnMain.Content = "开始游戏";
-            LocateHint.Text = $"已定位：{_locatedDir}";
-        }
-        else if (_locatedDir != null)
-        {
-            BtnMain.Content = "开始游戏";
-            LocateHint.Text = $"已定位目录，但未找到主程序（{string.Join(" / ", g.ExeNames)}）";
-        }
-        else
-        {
-            BtnMain.Content = "获取游戏";
-            LocateHint.Text = "点击「获取游戏」会弹出安装窗口（安装路径 / 语言 / 磁盘空间），确认后由官方启动器完成下载安装；已安装的游戏会自动定位并显示「开始游戏」。";
-        }
-
-        _ = RefreshPreDownloadAsync();
-    }
-
-    /// <summary>官方「预下载」：有新版本预下载包时在右下角显示按钮</summary>
-    private async Task RefreshPreDownloadAsync()
-    {
         var key = _selectedKey;
-        var info = await LauncherBackgroundService.GetPreDownloadAsync(key);
-        if (key != _selectedKey) return;
-        _preDownload = info;
-        if (info == null)
+        _runningGames.Add(key);
+        PushState();
+
+        var workDir = Path.GetDirectoryName(exe) ?? _locatedDir;
+        var started = false;
+        try
         {
-            BtnPreDownload.Visibility = Visibility.Collapsed;
-            BtnPreDownload.Content = "";
-            return;
+            Process.Start(new ProcessStartInfo(exe) { WorkingDirectory = workDir, UseShellExecute = false });
+            started = true;
         }
-        BtnPreDownload.Content = $"预下载 {info.Version} · {FormatSize(info.SizeBytes)}";
-        BtnPreDownload.Visibility = Visibility.Visible;
-    }
-
-    private static string FormatSize(long bytes)
-    {
-        const double gb = 1024d * 1024 * 1024;
-        return bytes >= gb ? $"{bytes / gb:0.00} GB" : $"{bytes / (1024d * 1024):0} MB";
-    }
-
-    private void BtnPreDownload_Click(object sender, RoutedEventArgs e)
-    {
-        if (_preDownload == null) return;
-        var g = GameLocator.Get(_selectedKey);
-        var dlg = new MiNest.Windows.InstallGameDialog(
-            g, DefaultGamesRoot(), true, _preDownload.Version, _preDownload.SizeBytes)
+        catch
         {
-            Owner = Window.GetWindow(this),
-        };
-        if (dlg.ShowDialog() != true) return;
-        OpenOfficialLauncher(g);
+            try
+            {
+                Process.Start(new ProcessStartInfo(exe) { WorkingDirectory = workDir, UseShellExecute = true });
+                started = true;
+            }
+            catch (Exception ex)
+            {
+                _runningGames.Remove(key);
+                PushState();
+                Toast("启动失败：" + ex.Message);
+                return;
+            }
+        }
+        if (!started) { _runningGames.Remove(key); PushState(); return; }
+
+        // 启动 3 秒后最小化窗口
+        await Task.Delay(3000);
+        var win = Window.GetWindow(this);
+        if (win != null) win.WindowState = WindowState.Minimized;
+
+        // 「游戏启动中」一直显示，直到该游戏所有进程退出（游戏本体/启动器换进程也能正确判定）
+        _ = TrackGameExitAsync(key, Path.GetFileNameWithoutExtension(exe));
     }
 
-    /// <summary>「获取游戏」：仿官方启动器的安装弹窗（不再跳转官网）</summary>
+    /// <summary>轮询进程名：等到进程出现（最多 60s），再等到连续消失后恢复按钮</summary>
+    private async Task TrackGameExitAsync(string key, string processName)
+    {
+        var appeared = false;
+        var missingChecks = 0;
+
+        for (var i = 0; i < 30 && !appeared; i++)
+        {
+            await Task.Delay(500);
+            if (Process.GetProcessesByName(processName).Length > 0) appeared = true;
+        }
+
+        while (true)
+        {
+            await Task.Delay(2000);
+            var alive = Process.GetProcessesByName(processName).Length > 0;
+            if (alive) { missingChecks = 0; continue; }
+            missingChecks++;
+            if (missingChecks >= 3)
+            {
+                _runningGames.Remove(key);
+                PushState();
+                return;
+            }
+        }
+    }
+
     private async Task InstallGameAsync()
     {
         var g = GameLocator.Get(_selectedKey);
@@ -509,7 +545,19 @@ public partial class LaunchPage : UserControl
         OpenOfficialLauncher(g);
     }
 
-    /// <summary>调起本机米哈游官方启动器完成下载/安装（找不到时回退到游戏官网）</summary>
+    private void ShowPreDownloadDialog()
+    {
+        if (_preDownload == null) return;
+        var g = GameLocator.Get(_selectedKey);
+        var dlg = new MiNest.Windows.InstallGameDialog(
+            g, DefaultGamesRoot(), true, _preDownload.Version, _preDownload.SizeBytes)
+        {
+            Owner = Window.GetWindow(this),
+        };
+        if (dlg.ShowDialog() != true) return;
+        OpenOfficialLauncher(g);
+    }
+
     private void OpenOfficialLauncher(GameDef g)
     {
         var exe = FindOfficialLauncher();
@@ -549,7 +597,6 @@ public partial class LaunchPage : UserControl
         candidates.Add(Path.Combine("D:\\miHoYo\\miHoYo Launcher", "launcher.exe"));
         candidates.Add(Path.Combine("C:\\miHoYo\\miHoYo Launcher", "launcher.exe"));
 
-        // 已定位的游戏目录一般是 ...\miHoYo Launcher\games\<游戏>，向上找启动器
         foreach (var g in GameLocator.Games)
         {
             if (!SettingsService.Settings.GamePaths.TryGetValue(g.Key, out var dir) || string.IsNullOrWhiteSpace(dir))
@@ -562,128 +609,17 @@ public partial class LaunchPage : UserControl
         return candidates.FirstOrDefault(File.Exists);
     }
 
-    private async void BtnMain_Click(object sender, RoutedEventArgs e)
+    private static string FormatSize(long bytes)
     {
-        var g = GameLocator.Get(_selectedKey);
-        _locatedDir = ResolveDir();
-        var exe = _locatedDir != null ? GameLocator.FindExe(_locatedDir, g) : null;
-
-        if (exe != null)
-        {
-            var key = _selectedKey;   // 记录本次启动的是哪款游戏
-            _runningGames.Add(key);
-            BtnMain.Content = "游戏启动中";
-            BtnMain.IsEnabled = false;
-
-            Process? proc = null;
-            var workDir = Path.GetDirectoryName(exe) ?? _locatedDir;
-            try
-            {
-                // 先以非 shell 方式启动，拿到进程句柄用于判断游戏是否结束
-                proc = Process.Start(new ProcessStartInfo(exe)
-                {
-                    WorkingDirectory = workDir,
-                    UseShellExecute = false,
-                });
-            }
-            catch
-            {
-                // 需要提升权限时回退到 shell 启动，再按进程名跟踪
-                try
-                {
-                    Process.Start(new ProcessStartInfo(exe)
-                    {
-                        WorkingDirectory = workDir,
-                        UseShellExecute = true,
-                    });
-                }
-                catch (Exception ex)
-                {
-                    RestoreLaunchState(key);
-                    MessageBox.Show($"启动失败：{ex.Message}", "mi-Nest", MessageBoxButton.OK, MessageBoxImage.Error);
-                    return;
-                }
-            }
-
-            // 启动 3 秒后把窗口最小化，交给游戏前台运行
-            await Task.Delay(3000);
-            var win = Window.GetWindow(this);
-            if (win != null) win.WindowState = WindowState.Minimized;
-
-            // 「游戏启动中」保持显示，直到游戏进程退出
-            try
-            {
-                if (proc == null) proc = await FindGameProcessAsync(exe, 10);
-                if (proc != null) await proc.WaitForExitAsync();
-            }
-            catch
-            {
-                // 进程不可跟踪时不再阻塞按钮
-            }
-            RestoreLaunchState(key);
-            return;
-        }
-
-        // 未定位：优先注册表自动检测；检测不到时弹出安装窗口（不再跳转官网）
-        if (_locatedDir == null)
-        {
-            await InstallGameAsync();
-        }
-        else
-        {
-            MessageBox.Show("未在目录中找到游戏主程序，请点击下方「定位游戏」按钮手动选择。", "mi-Nest", MessageBoxButton.OK, MessageBoxImage.Warning);
-        }
+        const double gb = 1024d * 1024 * 1024;
+        return bytes >= gb ? $"{bytes / gb:0.00} GB" : $"{bytes / (1024d * 1024):0} MB";
     }
 
-    /// <summary>按进程名轮询游戏进程（shell 启动拿不到句柄时使用）</summary>
-    private static async Task<Process?> FindGameProcessAsync(string exe, int timeoutSeconds)
+    /// <summary>预下载信息在后台刷新，有则推给页面</summary>
+    public async void RefreshPreDownload()
     {
-        var name = Path.GetFileNameWithoutExtension(exe);
-        for (var i = 0; i < timeoutSeconds * 4; i++)
-        {
-            var procs = Process.GetProcessesByName(name);
-            if (procs.Length > 0) return procs[0];
-            await Task.Delay(250);
-        }
-        return null;
-    }
-
-    /// <summary>指定游戏结束（或启动失败）后，仅恢复该游戏的按钮状态</summary>
-    private void RestoreLaunchState(string key)
-    {
-        _runningGames.Remove(key);
-        if (key != _selectedKey) return;   // 已切到别的游戏，当前页面不受影响
-
-        BtnMain.Content = "开始游戏";
-        BtnMain.IsEnabled = true;
-        RefreshState();
-    }
-
-    private void BtnRelocate_Click(object sender, RoutedEventArgs e) => PickFolder();
-
-    private void PickFolder()
-    {
-        using var dlg = new System.Windows.Forms.FolderBrowserDialog
-        {
-            Description = $"请选择「{GameLocator.Get(_selectedKey).Name}」的安装目录（包含 {string.Join(" / ", GameLocator.Get(_selectedKey).ExeNames)} 的文件夹）",
-            UseDescriptionForTitle = true,
-        };
-        if (dlg.ShowDialog() == System.Windows.Forms.DialogResult.OK)
-        {
-            SettingsService.Settings.GamePaths[_selectedKey] = dlg.SelectedPath;
-            SettingsService.Save();
-            RefreshState();
-        }
-    }
-
-    // ---------- 顶部 / 预约 ----------
-
-    private void BtnMhyy_Click(object sender, RoutedEventArgs e)
-        => _main.OpenInApp("https://mhyy.mihoyo.com/");
-
-    private void Reserve_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button btn && btn.Tag is string url)
-            _main.OpenInApp(url);
+        var key = _selectedKey;
+        _preDownload = await LauncherBackgroundService.GetPreDownloadAsync(key);
+        if (key == _selectedKey) PushState();
     }
 }

@@ -15,7 +15,7 @@ mi-Nest 是一个**全部页面都在软件内部展示**的桌面应用：把�
 
 ### 启动
 
-内嵌米哈游官方启动器：原神 / 星穹铁道 / 绝区零 / 崩坏3 四游戏独立背景，支持获取游戏、打开官方网址、独立更换背景、米哈云游与预约游戏入口。
+内嵌米哈游官方启动器页面：原神 / 星穹铁道 / 绝区零 / 崩坏3 各取官方当前版本的全部壁纸（含 `.webm` 动态壁纸，通过 WebView2 原生播放），画面无遮罩；鼠标移到左边缘浮现「‹ / › 切换、圆点跳转、保存壁纸、暂停动态」控制条。四个游戏各自独立判断运行状态：点「开始游戏」后按钮变为「游戏启动中」并一直保持，直到该游戏进程真正退出才恢复，期间可继续启动其他游戏。支持预下载提示、获取游戏（弹出安装窗口）、定位游戏、米哈云游与预约游戏入口。
 
 ![启动](docs/screenshots/launch.png)
 
@@ -115,7 +115,7 @@ dotnet run --project src/mi-Nest
 
 - 米游币任务、签到、登录等调用的是**社区公开接口**，其中的 `DS 盐值`、`AppVersion`、`gid/forum_id` 等常量集中在 `Services/MiHoYoHttp.cs`、`SignService.cs` 中；米哈游官方可能随时调整，导致 `-1 / 1034 / -5003` 等返回码，届时按社区最新参数同步更新即可。
 - 抽卡 authkey 有效期约 24 小时，过期后需重新在游戏内打开一次抽卡记录页面。
-- 启动页背景来自官方启动器接口 `hyp-connect/api/getAllGameBasicInfo`（`launcher_id=jGHBHlcOq1`，国服），实现方式参考 Starward：按游戏 `biz`（hk4e/hkrpg/nap/bh3）取当前版本**全部**背景，图片立即缓存到 `%AppData%\mi-Nest\bg`，`.webm` 动态视频在切换到该张壁纸时才按需下载；启动页左侧圆点数量与官方下发的背景数量一致，点某个圆点即切换到对应壁纸。预下载 / 安装包信息来自 `hyp-connect/api/getGamePackages`。无视频解码器（如缺少 VP9 扩展）时自动回落到静态壁纸。相关代码见 `Services/LauncherBackgroundService.cs`。
+- 启动页背景来自官方启动器接口 `hyp-connect/api/getAllGameBasicInfo`（`launcher_id=jGHBHlcOq1`，国服），实现方式参考 Starward：按游戏 `biz`（hk4e/hkrpg/nap/bh3）取当前版本**全部**背景，图片立即缓存到 `%AppData%\mi-Nest\bg`，`.webm` 动态视频在切换到该张壁纸时才按需下载。启动页整页由 WebView2 承载（Chromium 原生解码 VP9 WebM，不依赖系统解码器）：鼠标移到页面左边缘会浮现「‹ / › 切换、圆点跳转、保存壁纸、暂停 / 播放动态壁纸」的控制条，圆点数量与官方下发的背景数量一致。预下载 / 安装包信息来自 `hyp-connect/api/getGamePackages`。相关代码见 `Services/LauncherBackgroundService.cs`、`Assets/Launch/launch.html`。
 - 验证码登录在官方要求图形验证码时可能不可用，请改用扫码或 Cookie 登录。
 
 ## 致谢（参考的开源项目）

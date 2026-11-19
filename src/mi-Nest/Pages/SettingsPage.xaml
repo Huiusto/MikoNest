@@ -218,10 +218,7 @@
 
                                 <TextBlock Text="开源说明" FontSize="13.5" FontWeight="SemiBold"
                                            Foreground="{DynamicResource TextPrimary}" Margin="0,14,0,0"/>
-                                <TextBlock Text="本项目源码完全开源，遵循相关开源协议，欢迎查阅与贡献。"
-                                           Foreground="{DynamicResource TextSecondary}" FontSize="12.5"
-                                           TextWrapping="Wrap" LineHeight="20" Margin="0,6,0,0"/>
-                                <TextBlock Text="特别感谢以下开源项目：Starward（Scighost，MIT）—— 首页动态背景、祈愿/跃迁记录与预下载的实现思路参考；TeyvatGuide（BTMuli，MIT）——「实用脚本」任务与签到的交互参考；以及 HoYoPlay 官方启动器接口、Snap.Hutao 等社区资料。相关实现均为在本项目代码基础上重新编写，未直接复制其源码。"
+                                <TextBlock Text="本项目源码完全开源，欢迎查阅与贡献。参考了 Starward（Scighost，MIT）与 TeyvatGuide（BTMuli，MIT）的开源实现，包括首页动态壁纸、祈愿/跃迁记录、预下载与任务签到等思路，均在本项目内重新编写。"
                                            Foreground="{DynamicResource TextSecondary}" FontSize="12.5"
                                            TextWrapping="Wrap" LineHeight="20" Margin="0,6,0,0"/>
 

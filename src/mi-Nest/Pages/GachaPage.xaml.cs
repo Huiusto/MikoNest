@@ -1048,20 +1048,26 @@ public partial class GachaPage : UserControl
 
         if (_beyondMode)
         {
-            var beyondUrl = GameLocator.FindBeyondUrl(dir, GameDef);
+            string? beyondErr;
+            var beyondUrl = GameLocator.FindBeyondUrl(dir, GameDef, out beyondErr);
             if (string.IsNullOrEmpty(beyondUrl))
             {
-                SetStatus("游戏缓存里还没有颂愿链接：请先在游戏内打开一次「千星奇域 - 颂愿记录」页面，再回来点「更新记录」");
+                SetStatus(string.IsNullOrEmpty(beyondErr)
+                    ? "游戏缓存里还没有颂愿链接：请先在游戏内打开一次「千星奇域 - 颂愿记录」页面，再回来点「更新记录」"
+                    : beyondErr);
                 return;
             }
             await FetchAsync(GachaService.ToBeyondApiUrl(beyondUrl));
             return;
         }
 
-        var url = GameLocator.FindGachaUrl(dir, GameDef);
+        string? err;
+        var url = GameLocator.FindGachaUrl(dir, GameDef, out err);
         if (string.IsNullOrEmpty(url))
         {
-            SetStatus("游戏缓存中还没有抽卡链接：请先启动游戏，在游戏内打开一次「抽卡记录」页面，再回来点「更新记录」");
+            SetStatus(string.IsNullOrEmpty(err)
+                ? "游戏缓存中还没有抽卡链接：请先启动游戏，在游戏内打开一次「抽卡记录」页面，再回来点「更新记录」"
+                : err);
             return;
         }
         await FetchAsync(GachaService.ToApiUrl(url, _gameKey));
