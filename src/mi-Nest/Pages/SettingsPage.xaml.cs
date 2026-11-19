@@ -29,7 +29,7 @@ public partial class SettingsPage : UserControl
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         BuildThemePicker();
-        TxtVersion.Text = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.1.7";
+        TxtVersion.Text = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.1.8";
         TxtDataDir.Text = AppPaths.DataDir;
         // 初始化同步设置值时不触发写入事件（避免误存）
         _navInit = true;
@@ -330,11 +330,97 @@ public partial class SettingsPage : UserControl
         _main.OpenInApp("https://github.com/Huiusto/mi-Nest");
     }
 
-    private void BtnUpdate_Click(object sender, RoutedEventArgs e)
+    private bool _checkingUpdate;
+
+    private async void BtnUpdate_Click(object sender, RoutedEventArgs e)
     {
-        var ver = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.1.7";
-        MessageBox.Show($"当前已是最新版本 v{ver}。\n\n后续版本发布后，可在此处一键获取更新。", "检查更新",
-            MessageBoxButton.OK, MessageBoxImage.Information);
+        if (_checkingUpdate) return;
+        _checkingUpdate = true;
+
+        var current = Assembly.GetExecutingAssembly().GetName().Version ?? new Version(0, 1, 0, 0);
+        BtnUpdate.IsEnabled = false;
+        BtnUpdate.Content = "检查中…";
+        TxtUpdateHint.Text = "";
+
+        try
+        {
+            var (info, error) = await UpdateService.GetLatestAsync();
+            if (info == null)
+            {
+                TxtUpdateHint.Text = "检查失败：" + (error ?? "未知错误");
+                MessageBox.Show("检查更新失败：" + (error ?? "未知错误") +
+                                "\n\n可稍后重试，或直接在 GitHub 的 Release 页手动下载。", "检查更新",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var latest = UpdateService.ParseTag(info.Version);
+            if (latest != null && latest <= current)
+            {
+                TxtUpdateHint.Text = "已是最新版本";
+                MessageBox.Show($"当前已是最新版本 v{current.ToString(3)}。\n\n" +
+                                $"最新发布：v{info.Version}（{info.ReleasePage}）", "检查更新",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            if (string.IsNullOrEmpty(info.AssetUrl))
+            {
+                TxtUpdateHint.Text = $"发现 v{info.Version}（未附带安装包）";
+                var r = MessageBox.Show($"发现新版本 v{info.Version}（当前 v{current.ToString(3)}），" +
+                                        "但该 Release 没有附带安装包附件。\n\n是否打开下载页手动下载？", "发现新版本",
+                    MessageBoxButton.OKCancel, MessageBoxImage.Question);
+                if (r == MessageBoxResult.OK) OpenReleasePage(info.ReleasePage);
+                return;
+            }
+
+            var sizeText = info.AssetSize > 0 ? $"（{info.AssetSize / 1024d / 1024d:F1} MB）" : "";
+            var ok = MessageBox.Show($"发现新版本 v{info.Version}（当前 v{current.ToString(3)}）。\n\n" +
+                                     $"安装包：{info.AssetName} {sizeText}\n\n" +
+                                     "点击「确定」开始下载，下载完成后会自动安装并重启软件。",
+                "发现新版本", MessageBoxButton.OKCancel, MessageBoxImage.Question);
+            if (ok != MessageBoxResult.OK) return;
+
+            BtnUpdate.Content = "下载 0%";
+            var path = await UpdateService.DownloadAsync(info, (done, total) =>
+            {
+                if (total <= 0) return;
+                var pct = (int)Math.Round(done * 100d / total);
+                BtnUpdate.Content = $"下载 {pct}%";
+            });
+
+            BtnUpdate.Content = "安装中…";
+            TxtUpdateHint.Text = "安装包已下载，正在启动安装程序…";
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = path,
+                Arguments = "/S",
+                UseShellExecute = true,
+            });
+            await System.Threading.Tasks.Task.Delay(1200);
+            Application.Current.Shutdown();
+        }
+        catch (Exception ex)
+        {
+            TxtUpdateHint.Text = "更新失败：" + ex.Message;
+            MessageBox.Show("更新失败：" + ex.Message + "\n\n可在 GitHub 的 Release 页手动下载安装包。", "更新",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            _checkingUpdate = false;
+            BtnUpdate.IsEnabled = true;
+            BtnUpdate.Content = "更新";
+        }
+    }
+
+    private void OpenReleasePage(string url)
+    {
+        if (_main != null) _main.OpenInApp(url);
+        else
+        {
+            try { Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true }); } catch { }
+        }
     }
 
     private void BtnUninstall_Click(object sender, RoutedEventArgs e)
@@ -491,3 +577,4 @@ public partial class SettingsPage : UserControl
         _main?.ApplyCloseBehavior();
     }
 }
+

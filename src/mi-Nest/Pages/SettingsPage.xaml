@@ -80,8 +80,11 @@
                                           Style="{StaticResource SwitchToggle}"
                                           Checked="AccountNav_Changed" Unchecked="AccountNav_Changed"/>
                         </StackPanel>
-                        <Button Content="更新" Width="128" Padding="14,9" Style="{StaticResource AccentButton}"
+                        <Button x:Name="BtnUpdate" Content="更新" Width="128" Padding="14,9" Style="{StaticResource AccentButton}"
                                 Click="BtnUpdate_Click"/>
+                        <TextBlock x:Name="TxtUpdateHint" Width="128" Margin="0,8,0,0" FontSize="11"
+                                   TextAlignment="Center" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextSecondary}"/>
                         <Button Content="卸载" Width="128" Padding="14,9" Margin="0,10,0,0"
                                 Style="{StaticResource DangerButton}" Click="BtnUninstall_Click"/>
                     </StackPanel>

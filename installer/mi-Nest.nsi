@@ -20,7 +20,7 @@ RequestExecutionLevel admin
 SetCompressor /SOLID lzma
 
 !define APP_NAME "mi-Nest"
-!define APP_VERSION "0.1.7"
+!define APP_VERSION "0.1.8"
 !define APP_PUBLISHER "mi-Nest Contributors"
 
 ; ---------------- 图标 ----------------
@@ -104,6 +104,9 @@ Section "主程序" SecMain
     RMDir /r "$PROGRAMFILES64\HoYoNest"
 
   SetOutPath "$INSTDIR"
+  ; 应用内「一键更新」会静默运行本安装包：先结束正在运行的旧进程，避免文件占用
+  nsExec::Exec 'taskkill /IM mi-Nest.exe /F'
+  Sleep 800
   File /r "${PUBLISH_DIR}\*.*"
 
   ; 注册表卸载项（控制面板可卸载）
@@ -123,6 +126,11 @@ Section "主程序" SecMain
   CreateDirectory "$SMPROGRAMS\mi-Nest"
   CreateShortCut "$SMPROGRAMS\mi-Nest\mi-Nest.lnk" "$INSTDIR\mi-Nest.exe"
   CreateShortCut "$SMPROGRAMS\mi-Nest\卸载 mi-Nest.lnk" "$INSTDIR\uninstall.exe"
+
+  ; 应用内「一键更新」是静默安装：装完直接把新版本拉起来
+  ${If} ${Silent}
+    Exec '"$INSTDIR\mi-Nest.exe"'
+  ${EndIf}
 SectionEnd
 
 ; ---------------- 卸载 ----------------
@@ -139,3 +147,4 @@ Section "Uninstall"
   DeleteRegKey HKLM "Software\mi-Nest"
   ; 用户数据（Roaming\mi-Nest）保留，不删除
 SectionEnd
+
