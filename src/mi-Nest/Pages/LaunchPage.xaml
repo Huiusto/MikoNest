@@ -117,8 +117,12 @@
                     </Button>
                 </StackPanel>
 
-                <!-- 右下角：获取游戏 / 开始游戏 / 定位游戏 -->
+                <!-- 右下角：预下载 / 获取游戏 / 开始游戏 / 定位游戏 -->
                 <StackPanel HorizontalAlignment="Right" VerticalAlignment="Bottom">
+                    <Button x:Name="BtnPreDownload" Visibility="Collapsed"
+                            FontSize="13" Padding="16,8" Margin="0,0,0,10"
+                            HorizontalAlignment="Right" Click="BtnPreDownload_Click"
+                            Background="#CCFFF3E0" BorderBrush="#FFE0B2" Foreground="#8A4B00"/>
                     <Button x:Name="BtnMain" Style="{StaticResource AccentButton}" Content="获取游戏"
                             FontSize="16" FontWeight="SemiBold" Padding="46,13" MinWidth="174"
                             HorizontalAlignment="Right" Click="BtnMain_Click"/>

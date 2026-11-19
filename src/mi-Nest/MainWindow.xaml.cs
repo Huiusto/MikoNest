@@ -125,9 +125,38 @@ public partial class MainWindow : Window
 
     // ---------- 胡桃风格背景 ----------
 
-    /// <summary>按设置显示/隐藏整窗背景插画（Assets/hutao_bg.png）。</summary>
+    /// <summary>整窗背景：自定义软件背景图（优先） / 胡桃风格背景 / 无。</summary>
     public void ApplyBackdrop()
     {
+        // 1) 隐藏设置里的「自定义软件背景图」
+        var custom = SettingsService.Settings.CustomAppBackground;
+        if (!string.IsNullOrWhiteSpace(custom) && File.Exists(custom))
+        {
+            try
+            {
+                var img = new BitmapImage();
+                img.BeginInit();
+                img.CacheOption = BitmapCacheOption.OnLoad;
+                img.UriSource = new Uri(custom);
+                img.EndInit();
+                img.Freeze();
+                BackdropImage.Source = img;
+                BackdropImage.Visibility = Visibility.Visible;
+
+                var alpha = (byte)Math.Round(255 * Math.Clamp(SettingsService.Settings.CustomAppBackgroundVeil, 0, 100) / 100.0);
+                BackdropVeil.Background = new SolidColorBrush(Color.FromArgb(alpha, 255, 255, 255));
+                BackdropVeil.Visibility = Visibility.Visible;
+            }
+            catch
+            {
+                BackdropImage.Source = null;
+                BackdropImage.Visibility = Visibility.Collapsed;
+                BackdropVeil.Visibility = Visibility.Collapsed;
+            }
+            return;
+        }
+
+        // 2) 胡桃风格背景
         var on = SettingsService.Settings.HutaoBackdrop;
         if (on)
         {
@@ -146,6 +175,7 @@ public partial class MainWindow : Window
                 // 资源缺失时不显示背景，不影响其他功能
                 BackdropImage.Source = null;
             }
+            BackdropVeil.Background = new SolidColorBrush(Color.FromArgb(0x4D, 0xFF, 0xF6, 0xF2));
             BackdropImage.Visibility = Visibility.Visible;
             BackdropVeil.Visibility = Visibility.Visible;
         }

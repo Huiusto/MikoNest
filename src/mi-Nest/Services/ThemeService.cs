@@ -43,33 +43,42 @@ public static class ThemeService
 
         // 换主题后卡片底色变了：先清掉上一次的透明度覆盖，再按新主题底色重新计算
         Application.Current.Resources.Remove("CardBg");
+        Application.Current.Resources.Remove("ButtonBg");
         ApplyCardOpacity();
     }
 
-    /// <summary>按设置里的 0-100 数值设置卡片背景不透明度（0 = 完全透明，100 = 主题原色）</summary>
+    /// <summary>
+    /// 按设置里的 0-100 数值设置卡片 / 框框背景不透明度（0 = 完全透明，100 = 主题原色）。
+    /// 同时覆盖 CardBg（卡片）与 ButtonBg（默认按钮，「米哈游相关」九宫格等就是按钮样式）。
+    /// </summary>
     public static void ApplyCardOpacity()
     {
         var percent = Math.Clamp(SettingsService.Settings.CardOpacity, 0, 100);
-        var source = Application.Current.TryFindResource("CardBg") as SolidColorBrush;
-        if (source == null)
-        {
-            // 覆盖层已存在时 TryFindResource 会返回覆盖层，回退到主题字典里找原色
-            foreach (var dict in Application.Current.Resources.MergedDictionaries)
-            {
-                if (dict.Contains("CardBg") && dict["CardBg"] is SolidColorBrush b)
-                {
-                    source = b;
-                    break;
-                }
-            }
-        }
+        ApplyOpacityTo("CardBg", percent);
+        ApplyOpacityTo("ButtonBg", percent);
+    }
+
+    private static void ApplyOpacityTo(string key, int percent)
+    {
+        var source = FindThemeBrush(key);
         if (source == null) return;
 
         var c = source.Color;
         var alpha = (byte)Math.Round(255 * percent / 100.0);
         var brush = new SolidColorBrush(Color.FromArgb(alpha, c.R, c.G, c.B));
         brush.Freeze();
-        Application.Current.Resources["CardBg"] = brush;
+        Application.Current.Resources[key] = brush;
+    }
+
+    /// <summary>始终从主题字典取原始颜色（避免读到上一次写入的覆盖值）</summary>
+    private static SolidColorBrush? FindThemeBrush(string key)
+    {
+        foreach (var dict in Application.Current.Resources.MergedDictionaries)
+        {
+            if (dict.Contains(key) && dict[key] is SolidColorBrush b)
+                return b;
+        }
+        return Application.Current.TryFindResource(key) as SolidColorBrush;
     }
 
     public static void SetCardOpacity(int percent)

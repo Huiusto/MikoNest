@@ -36,6 +36,8 @@ public class AppSettings
     public string? CustomBackground { get; set; }
     /// <summary>每款游戏单独的自定义背景图：gameKey -> 绝对路径</summary>
     public Dictionary<string, string> GameBackgrounds { get; set; } = new();
+    /// <summary>每款游戏记住的官方背景序号（左侧圆点切换，0 = 官方最新一张）</summary>
+    public Dictionary<string, int> GameBackgroundIndex { get; set; } = new();
     /// <summary>API 请求用的设备 ID（首次生成后持久化）</summary>
     public string DeviceId { get; set; } = "";
     /// <summary>左侧导航栏（中间区）项顺序：内置 key（启动/社区/抽卡记录/任务/签到/米哈游相关）或 pin:xxx</summary>
@@ -56,6 +58,10 @@ public class AppSettings
     public string CloseBehavior { get; set; } = "Exit";
     /// <summary>胡桃风格背景：用胡桃主题插画作为应用界面背景（隐藏设置里开启）</summary>
     public bool HutaoBackdrop { get; set; }
+    /// <summary>自定义软件背景图（隐藏设置里选择，绝对路径；铺满整个窗口、低于内容层）</summary>
+    public string? CustomAppBackground { get; set; }
+    /// <summary>自定义软件背景图上方的浅色蒙版不透明度（0-100，默认 70）</summary>
+    public int CustomAppBackgroundVeil { get; set; } = 70;
     /// <summary>隐藏左侧「账号」按钮（设置页「更新」上方的开关控制）</summary>
     public bool HideAccountNav { get; set; }
     /// <summary>卡片 / 框框背景不透明度（0-100，设置页最上方滑动条控制）</summary>

@@ -115,9 +115,24 @@ dotnet run --project src/mi-Nest
 
 - 米游币任务、签到、登录等调用的是**社区公开接口**，其中的 `DS 盐值`、`AppVersion`、`gid/forum_id` 等常量集中在 `Services/MiHoYoHttp.cs`、`SignService.cs` 中；米哈游官方可能随时调整，导致 `-1 / 1034 / -5003` 等返回码，届时按社区最新参数同步更新即可。
 - 抽卡 authkey 有效期约 24 小时，过期后需重新在游戏内打开一次抽卡记录页面。
-- 启动页背景来自官方启动器接口 `hyp-connect/api/getAllGameBasicInfo`（`launcher_id=jGHBHlcOq1`，国服），实现方式参考 Starward：按游戏 `biz`（hk4e/hkrpg/nap/bh3）取当前版本第一项背景，下载到 `%AppData%\mi-Nest\bg` 缓存；无视频解码器（如缺少 VP9 扩展）时自动回落到静态壁纸。相关代码见 `Services/LauncherBackgroundService.cs`。
+- 启动页背景来自官方启动器接口 `hyp-connect/api/getAllGameBasicInfo`（`launcher_id=jGHBHlcOq1`，国服），实现方式参考 Starward：按游戏 `biz`（hk4e/hkrpg/nap/bh3）取当前版本**全部**背景，图片立即缓存到 `%AppData%\mi-Nest\bg`，`.webm` 动态视频在切换到该张壁纸时才按需下载；启动页左侧圆点数量与官方下发的背景数量一致，点某个圆点即切换到对应壁纸。预下载 / 安装包信息来自 `hyp-connect/api/getGamePackages`。无视频解码器（如缺少 VP9 扩展）时自动回落到静态壁纸。相关代码见 `Services/LauncherBackgroundService.cs`。
 - 验证码登录在官方要求图形验证码时可能不可用，请改用扫码或 Cookie 登录。
 
+## 致谢（参考的开源项目）
+
+mi-Nest 的多个功能在交互与思路上参考了以下开源项目，实现代码均为本项目自行编写，未直接复制其源码：
+
+| 项目 | 作者 | 协议 | 参考内容 |
+| --- | --- | --- | --- |
+| [Starward](https://github.com/Scighost/Starward) | Scighost | MIT | 启动页多张官方壁纸 / `.webm` 动态背景、预下载提示、祈愿 / 跃迁记录的分池统计与「已垫 / UP」展示、首页背景服务思路 |
+| [TeyvatGuide](https://github.com/BTMuli/TeyvatGuide) | BTMuli | MIT | 「实用脚本」式的米游币任务与全角色签到交互（一键执行当前账号 / 全部账号、任务清单与输出日志） |
+| [Snap.Hutao](https://github.com/DGP-Studio/Snap.Hutao) | DGP-Studio | GPL-3.0 | 米哈游接口参数与社区资料（仅作接口常量对照，未引入其代码） |
+
+同时感谢米哈游官方启动器公开的 `hyp-connect` 接口与社区维护的接口文档。
+## 平台支持
+
+- **Windows 10/11（x64）**：当前正式版本，WPF + .NET 9，自包含发布，无需安装 .NET 运行时。
+- **macOS**：暂未提供。现有界面基于 WPF，WPF 只能运行在 Windows 上；提供 macOS 版本需要把 UI 层迁移到 Avalonia 等跨平台框架（约等于一次整体重写），已在规划中，完成后会单独发布 `.dmg`。
 ## 免责声明
 
 本项目与米哈游官方**无任何关联**，仅供学习与个人使用。该软件存在大量第三方工具，第三方工具的任何问题都与本软件无任何关系。请遵守米哈游用户协议，勿对接口进行高频滥用；账号与数据安全请自行负责。

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
@@ -29,7 +29,7 @@ public partial class SettingsPage : UserControl
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         BuildThemePicker();
-        TxtVersion.Text = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.1.5";
+        TxtVersion.Text = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.1.7";
         TxtDataDir.Text = AppPaths.DataDir;
         // 初始化同步设置值时不触发写入事件（避免误存）
         _navInit = true;
@@ -54,6 +54,52 @@ public partial class SettingsPage : UserControl
         SldOpacity.Value = Math.Clamp(SettingsService.Settings.CardOpacity, 0, 100);
         TxtOpacityVal.Text = $"{(int)SldOpacity.Value}%";
         _opacityInit = false;
+
+        SldAppBgVeil.Value = Math.Clamp(SettingsService.Settings.CustomAppBackgroundVeil, 0, 100);
+        TxtAppBgVeil.Text = $"{(int)SldAppBgVeil.Value}%";
+        UpdateAppBgText();
+    }
+
+    private void UpdateAppBgText()
+    {
+        var path = SettingsService.Settings.CustomAppBackground;
+        TxtAppBgName.Text = !string.IsNullOrWhiteSpace(path) && File.Exists(path)
+            ? $"当前：{Path.GetFileName(path)}"
+            : "当前：未设置（使用主题默认背景）";
+    }
+
+    // ---------- 隐藏设置：自定义软件背景图 ----------
+
+    private void BtnPickAppBg_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "选择软件背景图",
+            Filter = "图片文件|*.png;*.jpg;*.jpeg;*.bmp;*.webp;*.gif|所有文件|*.*",
+        };
+        if (dlg.ShowDialog() != true) return;
+        SettingsService.Settings.CustomAppBackground = dlg.FileName;
+        SettingsService.Save();
+        _main?.ApplyBackdrop();
+        UpdateAppBgText();
+    }
+
+    private void BtnClearAppBg_Click(object sender, RoutedEventArgs e)
+    {
+        SettingsService.Settings.CustomAppBackground = null;
+        SettingsService.Save();
+        _main?.ApplyBackdrop();
+        UpdateAppBgText();
+    }
+
+    private void AppBgVeil_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (TxtAppBgVeil == null) return;
+        var v = (int)Math.Round(e.NewValue);
+        TxtAppBgVeil.Text = $"{v}%";
+        SettingsService.Settings.CustomAppBackgroundVeil = v;
+        SettingsService.Save();
+        _main?.ApplyBackdrop();
     }
 
     /// <summary>最上方滑动条：实时调整卡片 / 框框背景不透明度（0-100）</summary>
@@ -286,7 +332,7 @@ public partial class SettingsPage : UserControl
 
     private void BtnUpdate_Click(object sender, RoutedEventArgs e)
     {
-        var ver = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.1.5";
+        var ver = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.1.7";
         MessageBox.Show($"当前已是最新版本 v{ver}。\n\n后续版本发布后，可在此处一键获取更新。", "检查更新",
             MessageBoxButton.OK, MessageBoxImage.Information);
     }
