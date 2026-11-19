@@ -56,6 +56,110 @@ public static class GachaService
         return list.FirstOrDefault(x => x.Code == code)?.Name ?? $"卡池 {code}";
     }
 
+    /// <summary>千星奇域「颂愿」卡池（Starward 同款：1000 常驻颂愿 / 2000 活动颂愿）</summary>
+    public static readonly GachaPoolDef[] BeyondPools =
+    {
+        new("1000", "常驻颂愿"),
+        new("2000", "活动颂愿"),
+    };
+
+    public static string BeyondPoolName(string code)
+        => BeyondPools.FirstOrDefault(x => x.Code == code)?.Name ?? $"颂愿 {code}";
+
+    /// <summary>判断缓存链接是否指向千星奇域颂愿页面</summary>
+    public static bool IsBeyondUrl(string url)
+        => url.Contains("e20250716gacha", StringComparison.OrdinalIgnoreCase)
+           || url.Contains("getBeyondGachaLog", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>把千星奇域页面链接换成 getBeyondGachaLog 接口地址</summary>
+    public static string ToBeyondApiUrl(string url)
+    {
+        if (string.IsNullOrEmpty(url)) return url;
+        var api = url.Contains("hoyoverse", StringComparison.OrdinalIgnoreCase)
+            ? "https://public-operation-hk4e-sg.hoyoverse.com/gacha_info/api/getBeyondGachaLog"
+            : "https://public-operation-hk4e.mihoyo.com/gacha_info/api/getBeyondGachaLog";
+
+        var q = url.IndexOf('?');
+        if (q < 0) return api;
+        var auth = url[q..].Replace("#/log", "");
+        auth = System.Text.RegularExpressions.Regex.Replace(auth, @"&?(gacha_type|page|size|end_id)=[^&]*", "");
+        if (!auth.Contains("game_biz=")) auth += "&game_biz=hk4e_cn";
+        return api + auth;
+    }
+
+    /// <summary>拉取千星奇域颂愿全部记录（size=5，字段名与普通祈愿不同）</summary>
+    public static async Task<(bool ok, string message, List<GachaItem> items)> FetchBeyondAsync(string baseUrl)
+    {
+        var all = new List<GachaItem>();
+        foreach (var pool in BeyondPools)
+        {
+            var (ok, msg, items) = await FetchBeyondPoolAsync(baseUrl, pool.Code);
+            if (!ok) return (false, $"{pool.Name}：{msg}", all);
+            all.AddRange(items);
+        }
+        return (true, $"共 {all.Count} 条记录", all);
+    }
+
+    private static async Task<(bool ok, string message, List<GachaItem> items)> FetchBeyondPoolAsync(string baseUrl, string gachaType)
+    {
+        var list = new List<GachaItem>();
+        var baseUri = new Uri(NormalizeUrl(baseUrl));
+        var page = 1;
+        var endId = "0";
+        try
+        {
+            while (page < 200)
+            {
+                await Task.Delay(Random.Shared.Next(200, 300));
+                var query = System.Web.HttpUtility.ParseQueryString(baseUri.Query);
+                query["gacha_type"] = gachaType;
+                query["page"] = page.ToString();
+                query["size"] = "5";
+                query["end_id"] = endId;
+                if (string.IsNullOrEmpty(query["lang"])) query["lang"] = "zh-cn";
+                var url = baseUri.GetLeftPart(UriPartial.Path) + "?" + query.ToString();
+
+                var api = await MiHoYoHttp.GetPlainAsync(url, userAgent: GachaUa);
+                if (!api.Ok || api.Retcode != 0)
+                {
+                    var friendly = api.Retcode is -1 or -100 or -101 or -109 or -110
+                        ? "authkey 已过期：请先在游戏内打开一次「千星奇域 - 颂愿记录」页面，再回来点「更新记录」"
+                        : $"{api.Message}（{api.Retcode}）";
+                    return (false, friendly, list);
+                }
+                if (api.Data == null || !api.Data.Value.TryGetProperty("list", out var arr)
+                    || arr.ValueKind != JsonValueKind.Array)
+                    break;
+
+                var pageItems = new List<GachaItem>();
+                foreach (var el in arr.EnumerateArray())
+                {
+                    pageItems.Add(new GachaItem
+                    {
+                        Uid = el.GetProp("uid"),
+                        GachaType = gachaType,
+                        ItemId = el.GetProp("item_id"),
+                        Name = el.GetProp("item_name"),
+                        RankType = el.GetProp("rank_type"),
+                        ItemType = el.GetProp("item_type"),
+                        Time = el.GetProp("time"),
+                        Id = el.GetProp("id"),
+                    });
+                }
+                if (pageItems.Count == 0) break;
+                list.AddRange(pageItems);
+                endId = pageItems[^1].Id;
+                if (pageItems.Count < 5) break;
+                page++;
+            }
+            return (true, $"共 {list.Count} 条", list);
+        }
+        catch (Exception ex)
+        {
+            return (false, $"网络错误：{ex.Message}", list);
+        }
+    }
+
     /// <summary>确保链接带查询参数</summary>
     public static string NormalizeUrl(string url)
         => url.Contains('?') ? url : url + "?";

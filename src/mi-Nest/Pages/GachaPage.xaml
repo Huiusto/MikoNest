@@ -17,8 +17,14 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel VerticalAlignment="Top">
-                    <TextBlock x:Name="TxtTitle" Text="祈愿记录" FontSize="24" FontWeight="Bold"
-                               Foreground="{DynamicResource TextPrimary}"/>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock x:Name="TxtTitle" Text="祈愿记录" FontSize="24" FontWeight="Bold"
+                                   Foreground="{DynamicResource TextPrimary}"/>
+                        <Button x:Name="BtnBeyond" Content="千星奇域颂愿" Visibility="Collapsed"
+                                Height="28" Padding="12,0" Margin="14,3,0,0" FontSize="12"
+                                VerticalAlignment="Center" Click="BtnBeyond_Click"
+                                AutomationProperties.Name="千星奇域颂愿"/>
+                    </StackPanel>
                     <TextBlock x:Name="TxtSubtitle" Text="本地库 0 条"
                                FontSize="11.5" Foreground="{DynamicResource TextSecondary}" Margin="1,4,0,0"/>
                 </StackPanel>
@@ -91,6 +97,13 @@
         <ScrollViewer x:Name="BannerScroll" Grid.Row="1" Margin="0,16,0,0" SizeChanged="BannerScroll_SizeChanged"
                       HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
             <StackPanel x:Name="BannerPanel" Orientation="Horizontal" VerticalAlignment="Top"/>
+        </ScrollViewer>
+
+        <!-- ===== 千星奇域颂愿（两列） ===== -->
+        <ScrollViewer x:Name="BeyondScroll" Grid.Row="1" Margin="0,16,0,0" Visibility="Collapsed"
+                      SizeChanged="BeyondScroll_SizeChanged"
+                      HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+            <StackPanel x:Name="BeyondPanel" Orientation="Horizontal" VerticalAlignment="Top"/>
         </ScrollViewer>
 
         <!-- ===== 底部状态 ===== -->

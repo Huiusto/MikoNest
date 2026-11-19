@@ -169,6 +169,10 @@ public static class GameLocator
                         @"https://webstatic\.mihoyo\.com[^\x00-\x20""'\\]{0,1500}");
                     if (m.Success && m.Value.Contains("gacha", StringComparison.OrdinalIgnoreCase))
                     {
+                        // 千星奇域颂愿（e20250716gacha）走独立接口，不能混进普通祈愿
+                        if (m.Value.Contains("e20250716gacha", StringComparison.OrdinalIgnoreCase))
+                            continue;
+
                         if (lastWrite > bestTime)
                         {
                             bestTime = lastWrite;
@@ -198,6 +202,57 @@ public static class GameLocator
                 catch
                 {
                     // 单个缓存文件读取失败忽略，继续找其他版本
+                }
+            }
+            if (bestUrl != null) return bestUrl;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// 从原神 webCaches 里提取千星奇域「颂愿记录」页面 URL（页面前缀 e20250716gacha），
+    /// 与普通祈愿缓存互不干扰。
+    /// </summary>
+    public static string? FindBeyondUrl(string gameDir, GameDef g)
+    {
+        var dataDirs = new List<string> { g.DataDir };
+        if (g.Key == "genshin" && !dataDirs.Contains("GenshinImpact_Data"))
+            dataDirs.Add("GenshinImpact_Data");
+
+        foreach (var dataDir in dataDirs)
+        {
+            var wc = Path.Combine(gameDir, dataDir, "webCaches");
+            if (!Directory.Exists(wc)) continue;
+
+            var bestTime = DateTime.MinValue;
+            string? bestUrl = null;
+            foreach (var versionDir in Directory.GetDirectories(wc))
+            {
+                var f = Path.Combine(versionDir, @"Cache\Cache_Data\data_2");
+                if (!File.Exists(f)) continue;
+                var lastWrite = File.GetLastWriteTime(f);
+                try
+                {
+                    using var fs = File.Open(f, FileMode.Open, FileAccess.Read,
+                        FileShare.ReadWrite | FileShare.Delete);
+                    var ms = new MemoryStream();
+                    fs.CopyTo(ms);
+                    var text = Encoding.UTF8.GetString(ms.ToArray());
+                    foreach (Match m in Regex.Matches(text,
+                                 @"https://(?:webstatic\.mihoyo\.com|gs\.hoyoverse\.com)[^\x00-\x20""'\\]{0,1500}"))
+                    {
+                        if (!m.Value.Contains("e20250716gacha", StringComparison.OrdinalIgnoreCase)) continue;
+                        if (!m.Value.Contains("authkey", StringComparison.OrdinalIgnoreCase)) continue;
+                        if (lastWrite > bestTime)
+                        {
+                            bestTime = lastWrite;
+                            bestUrl = m.Value;
+                        }
+                    }
+                }
+                catch
+                {
+                    // 忽略单个缓存文件读取失败
                 }
             }
             if (bestUrl != null) return bestUrl;

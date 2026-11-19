@@ -20,8 +20,29 @@ public partial class GachaPage : UserControl
     private static readonly string[] GameLabels = { "原神", "星穹铁道", "绝区零", "崩坏3" };
 
     private readonly List<ColumnUi> _columns = new();
+    private readonly List<BeyondColUi> _beyondColumns = new();
     private bool _loading;
     private string _gameKey = "genshin";
+    private bool _beyondMode;
+
+    /// <summary>千星奇域记录单独存库，避免与普通祈愿统计互相污染</summary>
+    private const string BeyondStoreKey = "genshin_beyond";
+
+    private sealed class BeyondColUi
+    {
+        public GachaPoolDef Pool = new("", "");
+        public bool ShowFour = true;
+        public Border Root = new();
+        public Border Card = new();
+        public StackPanel ListPanel = new();
+        public Button TabFour = new();
+        public Button TabThree = new();
+        public List<RowVm> FourRows = new();
+        public List<RowVm> ThreeRows = new();
+        public int Total;
+        public int Pending;
+        public TextBlock EmptyHint = new();
+    }
 
     private sealed class RowVm
     {
@@ -62,6 +83,7 @@ public partial class GachaPage : UserControl
         }
         ChkShow4.IsChecked = true;
         ChkShowIcon.IsChecked = true;
+        BtnBeyond.Visibility = _gameKey == "genshin" ? Visibility.Visible : Visibility.Collapsed;
         TxtSettingsInfo.Text = $"数据目录：{AppPaths.DataDir}";
         RefreshAll();
     }
@@ -73,6 +95,9 @@ public partial class GachaPage : UserControl
         if (_loading) return;
         var idx = Math.Max(0, ComboGame.SelectedIndex);
         _gameKey = GameKeys[idx];
+        _beyondMode = false;
+        BtnBeyond.Content = "千星奇域颂愿";
+        BtnBeyond.Visibility = _gameKey == "genshin" ? Visibility.Visible : Visibility.Collapsed;
         TxtTitle.Text = _gameKey switch
         {
             "genshin" => "祈愿记录",
@@ -80,7 +105,31 @@ public partial class GachaPage : UserControl
             "zzz" => "调频记录",
             _ => "补给记录",
         };
+        ApplyModeLayout();
         RefreshAll();
+    }
+
+    private void BtnBeyond_Click(object sender, RoutedEventArgs e)
+    {
+        _beyondMode = !_beyondMode;
+        BtnBeyond.Content = _beyondMode ? "返回祈愿记录" : "千星奇域颂愿";
+        ApplyModeLayout();
+        RefreshAll();
+    }
+
+    private void ApplyModeLayout()
+    {
+        BannerScroll.Visibility = _beyondMode ? Visibility.Collapsed : Visibility.Visible;
+        BeyondScroll.Visibility = _beyondMode ? Visibility.Visible : Visibility.Collapsed;
+        TxtTitle.Text = _beyondMode
+            ? "千星奇域颂愿"
+            : _gameKey switch
+            {
+                "genshin" => "祈愿记录",
+                "starrail" => "跃迁记录",
+                "zzz" => "调频记录",
+                _ => "补给记录",
+            };
     }
 
     private void ComboUid_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -105,9 +154,11 @@ public partial class GachaPage : UserControl
         }
     }
 
+    private string StoreKey => _beyondMode ? BeyondStoreKey : _gameKey;
+
     private void RefreshUidCombo()
     {
-        var uids = GachaStore.GetUids(_gameKey);
+        var uids = GachaStore.GetUids(StoreKey);
         _loading = true;
         var keep = SelectedUid;
         ComboUid.Items.Clear();
@@ -128,6 +179,11 @@ public partial class GachaPage : UserControl
 
     private void RefreshBanners()
     {
+        if (_beyondMode)
+        {
+            RefreshBeyondBanners();
+            return;
+        }
         var uid = SelectedUid;
         var all = GachaStore.Query(uid, _gameKey);
         var last = all.Count > 0 ? all.Max(x => x.Time) : null;
@@ -408,6 +464,363 @@ public partial class GachaPage : UserControl
         foreach (var c in _columns) c.Card.Width = w;
     }
 
+    // ================= 千星奇域颂愿 =================
+
+    private void RefreshBeyondBanners()
+    {
+        var uid = SelectedUid;
+        var all = GachaStore.Query(uid, BeyondStoreKey);
+        var last = all.Count > 0 ? all.Max(x => x.Time) : null;
+        TxtSubtitle.Text = $"本地库 {all.Count} 条" + (last != null ? $" · 最近更新 {last}" : "");
+        if (all.Count == 0)
+            TxtStatus.Text = "还没有颂愿记录：先在游戏内打开一次「千星奇域 - 颂愿记录」页面，再回来点「更新记录」。";
+        else
+            TxtStatus.Text = $"颂愿记录已载入：{all.Count} 条（数据来源：游戏缓存 / 粘贴链接）";
+
+        BeyondPanel.Children.Clear();
+        _beyondColumns.Clear();
+
+        foreach (var pool in GachaService.BeyondPools)
+        {
+            var items = all.Where(x => x.GachaType == pool.Code).ToList();
+            var col = BuildBeyondColumn(pool, items);
+            _beyondColumns.Add(col);
+            BeyondPanel.Children.Add(col.Root);
+        }
+        ApplyBeyondWidth();
+    }
+
+    private static readonly Dictionary<string, string> BeyondRankColor = new()
+    {
+        ["5"] = "#E8A33D",
+        ["4"] = "#C864E0",
+        ["3"] = "#5EAAED",
+        ["2"] = "#3BA272",
+    };
+
+    private static readonly Dictionary<string, string> BeyondRankSoft = new()
+    {
+        ["5"] = "#2EE8A33D",
+        ["4"] = "#26C864E0",
+        ["3"] = "#205EAAED",
+        ["2"] = "#1A3BA272",
+    };
+
+    private BeyondColUi BuildBeyondColumn(GachaPoolDef pool, List<GachaItem> items)
+    {
+        var col = new BeyondColUi { Pool = pool };
+        var accentHex = pool.Code == "1000" ? "#C864E0" : "#E8A33D";
+        var asc = items.OrderBy(x => x.Time).ThenBy(x => x.Id).ToList();
+        var four = new List<RowVm>();
+        var three = new List<RowVm>();
+        var c4 = 0;
+        foreach (var it in asc)
+        {
+            c4++;
+            if (it.RankType == "4")
+            {
+                four.Add(new RowVm { Item = it, Pity = c4 });
+                c4 = 0;
+            }
+            else if (it.RankType == "3")
+            {
+                three.Add(new RowVm { Item = it, Pity = c4 });
+            }
+        }
+        col.Pending = c4;
+        col.FourRows = four.OrderByDescending(r => r.Item.Time).ThenByDescending(r => r.Item.Id).ToList();
+        col.ThreeRows = three.OrderByDescending(r => r.Item.Time).ThenByDescending(r => r.Item.Id).ToList();
+
+        var total = items.Count;
+        col.Total = total;
+        var cFour = items.Count(x => x.RankType == "4");
+        var cThree = items.Count(x => x.RankType == "3");
+        var cTwo = items.Count(x => x.RankType == "2");
+        var avgFour = four.Count > 0 ? four.Average(r => r.Pity) : 0d;
+        var start = asc.FirstOrDefault()?.Time;
+        var end = asc.LastOrDefault()?.Time;
+
+        string Pct(int n) => total > 0 ? $"{n * 100.0 / total:0.00}%" : "0.00%";
+        static string Short(string? t)
+        {
+            if (string.IsNullOrEmpty(t)) return "—";
+            var s = t.Replace('-', '/');
+            return s.Length >= 16 ? s[..16] : s;
+        }
+
+        var root = new Border
+        {
+            Width = 460,
+            Margin = new Thickness(0, 0, 10, 0),
+            CornerRadius = new CornerRadius(14),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(16, 14, 16, 14),
+        };
+        col.Card = root;
+        root.SetResourceReference(Border.BackgroundProperty, "CardBg");
+        root.SetResourceReference(Border.BorderBrushProperty, "CardBorder");
+
+        var grid = new Grid();
+        for (var i = 0; i < 5; i++) grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions[4].Height = new GridLength(1, GridUnitType.Star);
+
+        var accent = new Border
+        {
+            Height = 3,
+            CornerRadius = new CornerRadius(2),
+            Background = Brush(accentHex),
+            Opacity = 0.8,
+            Margin = new Thickness(0, 0, 0, 10),
+        };
+        grid.Children.Add(accent);
+
+        var headGrid = new Grid { Margin = new Thickness(0, 0, 0, 2) };
+        headGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        headGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var nameBlock = new TextBlock
+        {
+            Text = pool.Name,
+            FontSize = 16,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = (Brush)Application.Current.Resources["TextPrimary"],
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        var totalBlock = new TextBlock
+        {
+            Text = total.ToString(),
+            FontSize = 16,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = (Brush)Application.Current.Resources["TextSecondary"],
+            Margin = new Thickness(8, 0, 0, 0),
+        };
+        Grid.SetColumn(totalBlock, 1);
+        headGrid.Children.Add(nameBlock);
+        headGrid.Children.Add(totalBlock);
+        Grid.SetRow(headGrid, 1);
+        grid.Children.Add(headGrid);
+
+        var statPanel = new StackPanel { Margin = new Thickness(0, 3, 0, 12) };
+        statPanel.Children.Add(new TextBlock
+        {
+            Text = $"{Short(start)} - {Short(end)}",
+            FontSize = 10.5,
+            Foreground = (Brush)Application.Current.Resources["TextSecondary"],
+            Margin = new Thickness(0, 0, 0, 8),
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        });
+        statPanel.Children.Add(StatRowHost("4★ 平均", four.Count > 0 ? avgFour.ToString("0.00") : "—", "#C864E0"));
+        statPanel.Children.Add(StatRowHost("4★ 统计", $"{cFour}  [{Pct(cFour)}]", "#C864E0"));
+        statPanel.Children.Add(StatRowHost("3★ 统计", $"{cThree}  [{Pct(cThree)}]", "#5EAAED"));
+        statPanel.Children.Add(StatRowHost("2★ 统计", $"{cTwo}  [{Pct(cTwo)}]", "#3BA272"));
+        Grid.SetRow(statPanel, 2);
+        grid.Children.Add(statPanel);
+
+        var tabs = new Grid { Height = 30, Margin = new Thickness(0, 0, 0, 9) };
+        tabs.ColumnDefinitions.Add(new ColumnDefinition());
+        tabs.ColumnDefinitions.Add(new ColumnDefinition());
+        var pillBg = new Border { CornerRadius = new CornerRadius(7), BorderThickness = new Thickness(1) };
+        pillBg.SetResourceReference(Border.BackgroundProperty, "InputBg");
+        pillBg.SetResourceReference(Border.BorderBrushProperty, "CardBorder");
+        Grid.SetColumnSpan(pillBg, 2);
+        tabs.Children.Add(pillBg);
+
+        col.TabFour = MakePillButton("4★");
+        col.TabFour.Margin = new Thickness(2);
+        col.TabFour.Click += (_, _) => SwitchBeyondTab(col, true);
+        Grid.SetColumn(col.TabFour, 0);
+
+        col.TabThree = MakePillButton("3★");
+        col.TabThree.Margin = new Thickness(2);
+        col.TabThree.Click += (_, _) => SwitchBeyondTab(col, false);
+        Grid.SetColumn(col.TabThree, 1);
+
+        tabs.Children.Add(col.TabFour);
+        tabs.Children.Add(col.TabThree);
+        Grid.SetRow(tabs, 3);
+        grid.Children.Add(tabs);
+
+        var listScroll = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Margin = new Thickness(0, 0, -6, 0),
+            Padding = new Thickness(0, 0, 6, 0),
+        };
+        listScroll.Content = col.ListPanel;
+        var listHost = new Grid { MinHeight = 220 };
+        listHost.Children.Add(listScroll);
+        Grid.SetRow(listHost, 4);
+        grid.Children.Add(listHost);
+
+        col.EmptyHint = new TextBlock
+        {
+            Text = "暂无记录",
+            FontSize = 12,
+            Foreground = (Brush)Application.Current.Resources["TextSecondary"],
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 30, 0, 0),
+        };
+        listHost.Children.Add(col.EmptyHint);
+
+        root.Child = grid;
+        col.Root = root;
+        SwitchBeyondTab(col, true);
+        return col;
+    }
+
+    private static string ColorForFour(int pity)
+        => pity >= 10 ? "#C0453F" : pity >= 8 ? "#D08A3E" : "#3F9B6B";
+
+    private void SwitchBeyondTab(BeyondColUi col, bool fourStar)
+    {
+        col.ShowFour = fourStar;
+        var accent = (Brush)Application.Current.Resources["Accent"];
+        var secondary = (Brush)Application.Current.Resources["TextSecondary"];
+        var cardBg = (Brush)Application.Current.Resources["CardBg"];
+
+        col.TabFour.Background = fourStar ? cardBg : Brushes.Transparent;
+        col.TabThree.Background = fourStar ? Brushes.Transparent : cardBg;
+        col.TabFour.Foreground = fourStar ? accent : secondary;
+        col.TabThree.Foreground = fourStar ? secondary : accent;
+        col.TabFour.FontWeight = fourStar ? FontWeights.SemiBold : FontWeights.Normal;
+        col.TabThree.FontWeight = fourStar ? FontWeights.Normal : FontWeights.SemiBold;
+        RenderBeyondRows(col);
+    }
+
+    private void RenderBeyondRows(BeyondColUi col)
+    {
+        col.ListPanel.Children.Clear();
+        var rows = col.ShowFour ? col.FourRows : col.ThreeRows;
+        col.EmptyHint.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        col.EmptyHint.Text = col.ShowFour ? "暂无 4★ 记录" : "暂无 3★ 记录";
+
+        // 已垫（距上次 4★ 的抽数）
+        var pityRow = new Grid { Margin = new Thickness(0, 0, 0, 5), Height = 30 };
+        pityRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        pityRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var bg = new Border
+        {
+            CornerRadius = new CornerRadius(6),
+            Background = Brush(ColorForFour(col.Pending)),
+            Opacity = 0.92,
+        };
+        Grid.SetColumnSpan(bg, 2);
+        pityRow.Children.Add(bg);
+        var label = new TextBlock
+        {
+            Text = "已垫",
+            FontSize = 12.5,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = Brush("#FFFFFF"),
+            Margin = new Thickness(10, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        var val = new TextBlock
+        {
+            Text = col.Pending.ToString(),
+            FontSize = 12.5,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = Brush("#FFFFFF"),
+            Margin = new Thickness(0, 0, 10, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        Grid.SetColumn(val, 1);
+        pityRow.Children.Add(label);
+        pityRow.Children.Add(val);
+        col.ListPanel.Children.Add(pityRow);
+
+        foreach (var row in rows)
+            col.ListPanel.Children.Add(BuildBeyondRow(row, col.ShowFour));
+    }
+
+    private Border BuildBeyondRow(RowVm row, bool fourStar)
+    {
+        var rank = row.Item.RankType;
+        var rankColor = BeyondRankColor.TryGetValue(rank, out var rc) ? rc : "#7C93B0";
+
+        var g = new Grid { Margin = new Thickness(0, 0, 0, 4), Height = 32 };
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var rowBg = new Border
+        {
+            CornerRadius = new CornerRadius(6),
+            Background = Brush(BeyondRankSoft.TryGetValue(rank, out var soft) ? soft : "#00000000"),
+        };
+        Grid.SetColumnSpan(rowBg, 3);
+        g.Children.Add(rowBg);
+
+        if (ChkShowIcon.IsChecked == true)
+        {
+            var name = row.Item.Name;
+            var badge = new Border
+            {
+                Width = 24,
+                Height = 24,
+                CornerRadius = new CornerRadius(6),
+                Margin = new Thickness(6, 0, 8, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                Background = new LinearGradientBrush(
+                    (Color)ColorConverter.ConvertFromString(rankColor),
+                    (Color)ColorConverter.ConvertFromString("#FFFFFF"),
+                    new Point(0, 0), new Point(0, 1)),
+                Opacity = 0.92,
+                ToolTip = name,
+            };
+            badge.Child = new TextBlock
+            {
+                Text = name.Length > 0 ? name[..1] : "?",
+                FontSize = 11,
+                FontWeight = FontWeights.Bold,
+                Foreground = Brush("#FFFFFF"),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            g.Children.Add(badge);
+        }
+
+        var nameBlock = new TextBlock
+        {
+            Text = row.Item.Name,
+            FontSize = 12.5,
+            Foreground = (Brush)Application.Current.Resources["TextPrimary"],
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            ToolTip = $"{row.Item.Name} · {row.Item.Time}",
+            Margin = new Thickness(ChkShowIcon.IsChecked == true ? 0 : 10, 0, 6, 0),
+        };
+        Grid.SetColumn(nameBlock, 1);
+        g.Children.Add(nameBlock);
+
+        var pityBlock = new TextBlock
+        {
+            Text = row.Pity.ToString(),
+            FontSize = 12.5,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = Brush(ColorForFour(row.Pity)),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 10, 0),
+        };
+        Grid.SetColumn(pityBlock, 2);
+        g.Children.Add(pityBlock);
+
+        return new Border { Child = g, Background = Brushes.Transparent };
+    }
+
+    private void BeyondScroll_SizeChanged(object sender, SizeChangedEventArgs e) => ApplyBeyondWidth();
+
+    private void ApplyBeyondWidth()
+    {
+        if (_beyondColumns.Count == 0) return;
+        var avail = BeyondScroll.ActualWidth - 4;
+        if (avail <= 0) return;
+        var gap = 10.0;
+        var w = (avail - gap * (_beyondColumns.Count - 1)) / _beyondColumns.Count;
+        w = Math.Clamp(w, 300, 620);
+        foreach (var c in _beyondColumns) c.Card.Width = w;
+    }
+
     private Button MakePillButton(string text)
     {
         var b = new Button
@@ -603,6 +1016,18 @@ public partial class GachaPage : UserControl
             return;
         }
 
+        if (_beyondMode)
+        {
+            var beyondUrl = GameLocator.FindBeyondUrl(dir, GameDef);
+            if (string.IsNullOrEmpty(beyondUrl))
+            {
+                SetStatus("游戏缓存里还没有颂愿链接：请先在游戏内打开一次「千星奇域 - 颂愿记录」页面，再回来点「更新记录」");
+                return;
+            }
+            await FetchAsync(GachaService.ToBeyondApiUrl(beyondUrl));
+            return;
+        }
+
         var url = GameLocator.FindGachaUrl(dir, GameDef);
         if (string.IsNullOrEmpty(url))
         {
@@ -616,9 +1041,12 @@ public partial class GachaPage : UserControl
     {
         BtnUpdate.IsEnabled = false;
         BtnUpdate.Content = "更新中…";
+        var storeKey = _beyondMode ? BeyondStoreKey : _gameKey;
         try
         {
-            var (ok, msg, items) = await GachaService.FetchAllAsync(apiUrl, _gameKey);
+            var (ok, msg, items) = _beyondMode
+                ? await GachaService.FetchBeyondAsync(apiUrl)
+                : await GachaService.FetchAllAsync(apiUrl, _gameKey);
             if (!ok || items.Count == 0)
             {
                 SetStatus(items.Count == 0 ? msg : $"{msg}（已保留本地库记录）");
@@ -626,8 +1054,10 @@ public partial class GachaPage : UserControl
             }
             foreach (var it in items)
             {
-                it.GameKey = _gameKey;
-                it.PoolName = GachaService.PoolName(_gameKey, it.GachaType);
+                it.GameKey = storeKey;
+                it.PoolName = _beyondMode
+                    ? GachaService.BeyondPoolName(it.GachaType)
+                    : GachaService.PoolName(_gameKey, it.GachaType);
             }
             var added = GachaStore.Merge(items);
             RefreshAll();
@@ -693,7 +1123,20 @@ public partial class GachaPage : UserControl
     {
         var text = Prompt("粘贴抽卡记录链接", "把游戏里「抽卡记录」页面的 URL（或带 authkey 的链接）粘贴进来：");
         if (string.IsNullOrWhiteSpace(text)) return;
-        await FetchAsync(GachaService.ToApiUrl(text.Trim(), _gameKey));
+        var clean = text.Trim();
+        if (GachaService.IsBeyondUrl(clean))
+        {
+            if (!_beyondMode)
+            {
+                _beyondMode = true;
+                BtnBeyond.Content = "返回祈愿记录";
+                ApplyModeLayout();
+                RefreshAll();
+            }
+            await FetchAsync(GachaService.ToBeyondApiUrl(clean));
+            return;
+        }
+        await FetchAsync(GachaService.ToApiUrl(clean, _gameKey));
     }
 
     private void MenuPickFolder_Click(object sender, RoutedEventArgs e)
@@ -785,7 +1228,7 @@ public partial class GachaPage : UserControl
         }
         if (MessageBox.Show($"确定清空 UID {uid} 的本地抽卡记录？此操作不可恢复。", "mi-Nest",
                 MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK) return;
-        GachaStore.Clear(uid, _gameKey);
+        GachaStore.Clear(uid, StoreKey);
         RefreshAll();
         SetStatus($"已清空 UID {uid} 的本地记录");
     }
