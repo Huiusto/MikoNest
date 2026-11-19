@@ -19,9 +19,9 @@ public static class GachaService
     {
         ["genshin"] = new[]
         {
-            new GachaPoolDef("302", "常驻祈愿"),
-            new GachaPoolDef("200", "角色活动祈愿"),
-            new GachaPoolDef("301", "武器活动祈愿"),
+            new GachaPoolDef("200", "常驻祈愿"),
+            new GachaPoolDef("301", "角色活动祈愿"),
+            new GachaPoolDef("302", "武器活动祈愿"),
             new GachaPoolDef("500", "集录祈愿"),
             new GachaPoolDef("100", "新手祈愿"),
         },

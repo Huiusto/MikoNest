@@ -187,12 +187,27 @@ public partial class GachaPage : UserControl
             RefreshBeyondBanners();
             return;
         }
+
+        // 保底计数只在单个 UID 内才有意义：多 UID 混在一列会串号（出现 90 抽以上的“已垫”）
+        var uids = GachaStore.GetUids(_gameKey);
+        if (SelectedUid == null && uids.Count > 1)
+        {
+            _loading = true;
+            if (ComboUid.Items.Count > 1)
+            {
+                ComboUid.SelectedIndex = 1;
+            }
+            _loading = false;
+        }
+
         var uid = SelectedUid;
         var all = GachaStore.Query(uid, _gameKey);
         var last = all.Count > 0 ? all.Max(x => x.Time) : null;
         TxtSubtitle.Text = $"本地库 {all.Count} 条" + (last != null ? $" · 最近更新 {last}" : "");
         if (all.Count == 0)
             TxtStatus.Text = "本地库还是空的：先在游戏内打开一次「抽卡记录」页面，再回来点「更新记录」；也可以从「▾ → 导入 UIGF / SRGF 文件」导入已有记录。";
+        else if (uids.Count > 1 && uid != null)
+            TxtStatus.Text = $"已按 UID {uid} 单独统计保底（共 {uids.Count} 个账号，可在右上角切换 UID）";
 
         BannerPanel.Children.Clear();
         _columns.Clear();
@@ -471,6 +486,13 @@ public partial class GachaPage : UserControl
 
     private void RefreshBeyondBanners()
     {
+        var uids = GachaStore.GetUids(BeyondStoreKey);
+        if (SelectedUid == null && uids.Count > 1 && ComboUid.Items.Count > 1)
+        {
+            _loading = true;
+            ComboUid.SelectedIndex = 1;
+            _loading = false;
+        }
         var uid = SelectedUid;
         var all = GachaStore.Query(uid, BeyondStoreKey);
         var last = all.Count > 0 ? all.Max(x => x.Time) : null;

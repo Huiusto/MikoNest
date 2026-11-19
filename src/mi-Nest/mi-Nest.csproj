@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -9,7 +9,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <AssemblyName>mi-Nest</AssemblyName>
     <RootNamespace>MiNest</RootNamespace>
-    <Version>0.1.11</Version>
+    <Version>0.1.12</Version>
     <Authors>mi-Nest Contributors</Authors>
     <Product>mi-Nest</Product>
     <Description>mi-Nest - 米哈游 PC 多功能桌面客户端（开源）</Description>
