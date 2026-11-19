@@ -25,6 +25,7 @@ public partial class LaunchPage : UserControl
     private string? _locatedDir;
     private readonly HashSet<string> _runningGames = new();   // 正在运行的游戏（按键名分别记录）
     private readonly List<(Button Dot, string Key)> _dots = new();
+    private string? _bgId;                                    // 当前显示的官方背景版本 ID
 
     public LaunchPage(MainWindow main)
     {
@@ -32,6 +33,8 @@ public partial class LaunchPage : UserControl
         _main = main;
         _selectedKey = "genshin";
         Loaded += OnLoaded;
+        IsVisibleChanged += OnPageVisibleChanged;
+        Unloaded += (_, _) => StopVideo();
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
@@ -117,30 +120,149 @@ public partial class LaunchPage : UserControl
 
     private void ApplyBackground()
     {
-        // 每款游戏可单独设置自定义背景；未设置时使用该游戏专属官图
-        var custom = SettingsService.Settings.GameBackgrounds.TryGetValue(_selectedKey, out var p) && File.Exists(p)
+        // 每款游戏可单独设置自定义背景；未设置时使用官方启动器下发的最新版本背景
+        var key = _selectedKey;
+        var custom = SettingsService.Settings.GameBackgrounds.TryGetValue(key, out var p) && File.Exists(p)
             ? p
             : null;
         if (custom == null)
             custom = SettingsService.Settings.CustomBackground; // 兼容旧版全局自定义背景
         if (custom != null && File.Exists(custom))
         {
+            StopVideo();
             BgImage.Source = new BitmapImage(new Uri(custom));
             BtnResetBg.Visibility = Visibility.Visible;
+            _bgId = null;
             return;
         }
 
         BtnResetBg.Visibility = Visibility.Collapsed;
+
+        // 先用本地缓存的官方背景（上次下载的版本壁纸/视频）秒开，避免白屏
+        var cached = LauncherBackgroundService.GetCached(key);
+        if (cached?.ImagePath != null)
+            SetImageFromFile(cached.ImagePath);
+        else
+            SetBundledBackground(key);
+        _bgId = cached?.Id;
+        if (cached?.VideoPath != null) PlayVideo(cached.VideoPath);
+        else StopVideo();
+
+        // 再后台向官方接口核对：版本更新后自动换成新背景（含动态背景）
+        _ = RefreshOfficialBackgroundAsync(key);
+    }
+
+    /// <summary>向官方启动器接口拉取当前版本背景；若与本页显示的版本不同则切换</summary>
+    private async Task RefreshOfficialBackgroundAsync(string key)
+    {
+        var meta = await LauncherBackgroundService.RefreshAsync(key);
+        if (meta == null || key != _selectedKey) return;   // 等待期间已切换到别的游戏
+
+        // 用户为该游戏设置了自定义背景时，官方背景不覆盖
+        if (HasCustomBackground(key)) return;
+
+        if (meta.ImagePath != null) SetImageFromFile(meta.ImagePath);
+        if (meta.VideoPath != null) PlayVideo(meta.VideoPath);
+        else StopVideo();
+        _bgId = meta.Id;
+    }
+
+    private static bool HasCustomBackground(string key)
+    {
+        if (SettingsService.Settings.GameBackgrounds.TryGetValue(key, out var p) && File.Exists(p)) return true;
+        var old = SettingsService.Settings.CustomBackground;
+        return !SettingsService.Settings.GameBackgrounds.ContainsKey(key)
+               && !string.IsNullOrWhiteSpace(old) && File.Exists(old);
+    }
+
+    private void SetImageFromFile(string path)
+    {
         try
         {
-            // 每款游戏一张专属背景：星穹铁道使用 Assets/bg_StarRail.jpg，其余为 Assets/bg_{key}.jpg
-            var bgName = _selectedKey == "starrail" ? "bg_StarRail.jpg" : $"bg_{_selectedKey}.jpg";
+            var bmp = new BitmapImage();
+            bmp.BeginInit();
+            bmp.CacheOption = BitmapCacheOption.OnLoad;
+            bmp.UriSource = new Uri(path);
+            bmp.EndInit();
+            BgImage.Source = bmp;
+        }
+        catch
+        {
+            SetBundledBackground(_selectedKey);
+        }
+    }
+
+    private void SetBundledBackground(string key)
+    {
+        try
+        {
+            // 内置兜底背景：星穹铁道使用 Assets/bg_StarRail.jpg，其余为 Assets/bg_{key}.jpg
+            var bgName = key == "starrail" ? "bg_StarRail.jpg" : $"bg_{key}.jpg";
             BgImage.Source = new BitmapImage(new Uri($"pack://application:,,,/Assets/{bgName}"));
         }
         catch
         {
             BgImage.Source = new BitmapImage(new Uri("pack://application:,,,/Assets/background.jpg"));
         }
+    }
+
+    // ---------- 动态背景（官方视频） ----------
+
+    private void PlayVideo(string path)
+    {
+        try
+        {
+            if (!File.Exists(path)) return;
+            BgVideo.Source = new Uri(path);
+            BgVideo.Position = TimeSpan.Zero;
+            BgVideo.Visibility = Visibility.Visible;
+            BgVideo.Play();
+        }
+        catch
+        {
+            BgVideo.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void StopVideo()
+    {
+        try
+        {
+            BgVideo.Stop();
+            BgVideo.Source = null;
+        }
+        catch
+        {
+            // 忽略
+        }
+        BgVideo.Visibility = Visibility.Collapsed;
+    }
+
+    private void BgVideo_MediaEnded(object sender, RoutedEventArgs e)
+    {
+        // 循环播放动态背景（与 Starward 首页一致）
+        try
+        {
+            BgVideo.Position = TimeSpan.Zero;
+            BgVideo.Play();
+        }
+        catch
+        {
+            BgVideo.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void BgVideo_MediaFailed(object sender, ExceptionRoutedEventArgs e)
+    {
+        // 当前系统缺少视频解码器（如未安装 VP9 扩展）时静默回落到静态壁纸
+        BgVideo.Visibility = Visibility.Collapsed;
+    }
+
+    /// <summary>页面不可见（切到其它页面/最小化）时暂停视频，回到本页再继续</summary>
+    private void OnPageVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (!IsVisible) BgVideo.Pause();
+        else if (BgVideo.Source != null) BgVideo.Play();
     }
 
     private void BtnChangeBg_Click(object sender, RoutedEventArgs e)

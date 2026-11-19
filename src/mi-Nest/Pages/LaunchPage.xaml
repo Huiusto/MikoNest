@@ -33,8 +33,13 @@
         </Style>
     </UserControl.Resources>
     <Grid x:Name="RootGrid" MouseMove="RootGrid_MouseMove">
-        <!-- 背景图：跟随所选游戏切换（原神 / 星穹铁道 / 绝区零 / 崩坏3 各有专属官方宣传图） -->
-        <Image x:Name="BgImage" Stretch="UniformToFill"/>
+        <!-- 背景层：静态壁纸（版本海报/自定义图）+ 官方动态背景（视频） -->
+        <Grid x:Name="BgLayer" ClipToBounds="True">
+            <Image x:Name="BgImage" Stretch="UniformToFill"/>
+            <MediaElement x:Name="BgVideo" Stretch="UniformToFill" Visibility="Collapsed"
+                          LoadedBehavior="Manual" UnloadedBehavior="Manual" IsMuted="True"
+                          MediaEnded="BgVideo_MediaEnded" MediaFailed="BgVideo_MediaFailed"/>
+        </Grid>
         <!-- 轻量暗化层，保证文字可读性 -->
         <Border Background="#40000000"/>
 
