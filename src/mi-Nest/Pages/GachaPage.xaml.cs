@@ -32,11 +32,14 @@ public partial class GachaPage : UserControl
     {
         public GachaPoolDef Pool = new("", "");
         public bool ShowFour = true;
+        public bool Activity;
         public Border Root = new();
         public Border Card = new();
         public StackPanel ListPanel = new();
+        public Button TabFive = new();
         public Button TabFour = new();
         public Button TabThree = new();
+        public List<RowVm> FiveRows = new();
         public List<RowVm> FourRows = new();
         public List<RowVm> ThreeRows = new();
         public int Total;
@@ -508,16 +511,25 @@ public partial class GachaPage : UserControl
 
     private BeyondColUi BuildBeyondColumn(GachaPoolDef pool, List<GachaItem> items)
     {
-        var col = new BeyondColUi { Pool = pool };
-        var accentHex = pool.Code == "1000" ? "#C864E0" : "#E8A33D";
+        var col = new BeyondColUi { Pool = pool, Activity = pool.Code == "2000" };
+        var accentHex = col.Activity ? "#E8A33D" : "#C864E0";
         var asc = items.OrderBy(x => x.Time).ThenBy(x => x.Id).ToList();
+        var five = new List<RowVm>();
         var four = new List<RowVm>();
         var three = new List<RowVm>();
         var c4 = 0;
+        var c5 = 0;
         foreach (var it in asc)
         {
             c4++;
-            if (it.RankType == "4")
+            c5++;
+            if (it.RankType == "5")
+            {
+                five.Add(new RowVm { Item = it, Pity = c5 });
+                c5 = 0;
+                c4 = 0;
+            }
+            else if (it.RankType == "4")
             {
                 four.Add(new RowVm { Item = it, Pity = c4 });
                 c4 = 0;
@@ -527,16 +539,19 @@ public partial class GachaPage : UserControl
                 three.Add(new RowVm { Item = it, Pity = c4 });
             }
         }
-        col.Pending = c4;
+        col.Pending = col.Activity ? c5 : c4;
+        col.FiveRows = five.OrderByDescending(r => r.Item.Time).ThenByDescending(r => r.Item.Id).ToList();
         col.FourRows = four.OrderByDescending(r => r.Item.Time).ThenByDescending(r => r.Item.Id).ToList();
         col.ThreeRows = three.OrderByDescending(r => r.Item.Time).ThenByDescending(r => r.Item.Id).ToList();
 
         var total = items.Count;
         col.Total = total;
+        var cFive2 = items.Count(x => x.RankType == "5");
         var cFour = items.Count(x => x.RankType == "4");
         var cThree = items.Count(x => x.RankType == "3");
         var cTwo = items.Count(x => x.RankType == "2");
         var avgFour = four.Count > 0 ? four.Average(r => r.Pity) : 0d;
+        var avgFive = five.Count > 0 ? five.Average(r => r.Pity) : 0d;
         var start = asc.FirstOrDefault()?.Time;
         var end = asc.LastOrDefault()?.Time;
 
@@ -608,10 +623,20 @@ public partial class GachaPage : UserControl
             Margin = new Thickness(0, 0, 0, 8),
             TextTrimming = TextTrimming.CharacterEllipsis,
         });
-        statPanel.Children.Add(StatRowHost("4★ 平均", four.Count > 0 ? avgFour.ToString("0.00") : "—", "#C864E0"));
-        statPanel.Children.Add(StatRowHost("4★ 统计", $"{cFour}  [{Pct(cFour)}]", "#C864E0"));
-        statPanel.Children.Add(StatRowHost("3★ 统计", $"{cThree}  [{Pct(cThree)}]", "#5EAAED"));
-        statPanel.Children.Add(StatRowHost("2★ 统计", $"{cTwo}  [{Pct(cTwo)}]", "#3BA272"));
+        if (col.Activity)
+        {
+            statPanel.Children.Add(StatRowHost("5★ 平均", five.Count > 0 ? avgFive.ToString("0.00") : "—", "#E8A33D"));
+            statPanel.Children.Add(StatRowHost("5★ 统计", $"{cFive2}  [{Pct(cFive2)}]", "#E8A33D"));
+            statPanel.Children.Add(StatRowHost("4★ 统计", $"{cFour}  [{Pct(cFour)}]", "#C864E0"));
+            statPanel.Children.Add(StatRowHost("3★ 统计", $"{cThree}  [{Pct(cThree)}]", "#5EAAED"));
+        }
+        else
+        {
+            statPanel.Children.Add(StatRowHost("4★ 平均", four.Count > 0 ? avgFour.ToString("0.00") : "—", "#C864E0"));
+            statPanel.Children.Add(StatRowHost("4★ 统计", $"{cFour}  [{Pct(cFour)}]", "#C864E0"));
+            statPanel.Children.Add(StatRowHost("3★ 统计", $"{cThree}  [{Pct(cThree)}]", "#5EAAED"));
+            statPanel.Children.Add(StatRowHost("2★ 统计", $"{cTwo}  [{Pct(cTwo)}]", "#3BA272"));
+        }
         Grid.SetRow(statPanel, 2);
         grid.Children.Add(statPanel);
 
@@ -624,18 +649,18 @@ public partial class GachaPage : UserControl
         Grid.SetColumnSpan(pillBg, 2);
         tabs.Children.Add(pillBg);
 
-        col.TabFour = MakePillButton("4★");
+        col.TabFive = MakePillButton(col.Activity ? "5★" : "4★");
+        col.TabFive.Margin = new Thickness(2);
+        col.TabFive.Click += (_, _) => SwitchBeyondTab(col, true);
+        Grid.SetColumn(col.TabFive, 0);
+
+        col.TabFour = MakePillButton(col.Activity ? "4★" : "3★");
         col.TabFour.Margin = new Thickness(2);
-        col.TabFour.Click += (_, _) => SwitchBeyondTab(col, true);
-        Grid.SetColumn(col.TabFour, 0);
+        col.TabFour.Click += (_, _) => SwitchBeyondTab(col, false);
+        Grid.SetColumn(col.TabFour, 1);
 
-        col.TabThree = MakePillButton("3★");
-        col.TabThree.Margin = new Thickness(2);
-        col.TabThree.Click += (_, _) => SwitchBeyondTab(col, false);
-        Grid.SetColumn(col.TabThree, 1);
-
+        tabs.Children.Add(col.TabFive);
         tabs.Children.Add(col.TabFour);
-        tabs.Children.Add(col.TabThree);
         Grid.SetRow(tabs, 3);
         grid.Children.Add(tabs);
 
@@ -671,37 +696,42 @@ public partial class GachaPage : UserControl
     private static string ColorForFour(int pity)
         => pity >= 10 ? "#C0453F" : pity >= 8 ? "#D08A3E" : "#3F9B6B";
 
-    private void SwitchBeyondTab(BeyondColUi col, bool fourStar)
+    private void SwitchBeyondTab(BeyondColUi col, bool first)
     {
-        col.ShowFour = fourStar;
+        col.ShowFour = first;
         var accent = (Brush)Application.Current.Resources["Accent"];
         var secondary = (Brush)Application.Current.Resources["TextSecondary"];
         var cardBg = (Brush)Application.Current.Resources["CardBg"];
 
-        col.TabFour.Background = fourStar ? cardBg : Brushes.Transparent;
-        col.TabThree.Background = fourStar ? Brushes.Transparent : cardBg;
-        col.TabFour.Foreground = fourStar ? accent : secondary;
-        col.TabThree.Foreground = fourStar ? secondary : accent;
-        col.TabFour.FontWeight = fourStar ? FontWeights.SemiBold : FontWeights.Normal;
-        col.TabThree.FontWeight = fourStar ? FontWeights.Normal : FontWeights.SemiBold;
+        col.TabFive.Background = first ? cardBg : Brushes.Transparent;
+        col.TabFour.Background = first ? Brushes.Transparent : cardBg;
+        col.TabFive.Foreground = first ? accent : secondary;
+        col.TabFour.Foreground = first ? secondary : accent;
+        col.TabFive.FontWeight = first ? FontWeights.SemiBold : FontWeights.Normal;
+        col.TabFour.FontWeight = first ? FontWeights.Normal : FontWeights.SemiBold;
         RenderBeyondRows(col);
     }
 
     private void RenderBeyondRows(BeyondColUi col)
     {
         col.ListPanel.Children.Clear();
-        var rows = col.ShowFour ? col.FourRows : col.ThreeRows;
+        var rows = col.Activity
+            ? (col.ShowFour ? col.FiveRows : col.FourRows)
+            : (col.ShowFour ? col.FourRows : col.ThreeRows);
+        var starLabel = col.Activity
+            ? (col.ShowFour ? "5★" : "4★")
+            : (col.ShowFour ? "4★" : "3★");
         col.EmptyHint.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        col.EmptyHint.Text = col.ShowFour ? "暂无 4★ 记录" : "暂无 3★ 记录";
+        col.EmptyHint.Text = $"暂无 {starLabel} 记录";
 
-        // 已垫（距上次 4★ 的抽数）
+        // 已垫（常驻：距上次 4★；活动：距上次 5★）
         var pityRow = new Grid { Margin = new Thickness(0, 0, 0, 5), Height = 30 };
         pityRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         pityRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         var bg = new Border
         {
             CornerRadius = new CornerRadius(6),
-            Background = Brush(ColorForFour(col.Pending)),
+            Background = Brush(col.Activity ? ColorFor(col.Pending) : ColorForFour(col.Pending)),
             Opacity = 0.92,
         };
         Grid.SetColumnSpan(bg, 2);
@@ -730,10 +760,10 @@ public partial class GachaPage : UserControl
         col.ListPanel.Children.Add(pityRow);
 
         foreach (var row in rows)
-            col.ListPanel.Children.Add(BuildBeyondRow(row, col.ShowFour));
+            col.ListPanel.Children.Add(BuildBeyondRow(row));
     }
 
-    private Border BuildBeyondRow(RowVm row, bool fourStar)
+    private Border BuildBeyondRow(RowVm row)
     {
         var rank = row.Item.RankType;
         var rankColor = BeyondRankColor.TryGetValue(rank, out var rc) ? rc : "#7C93B0";
@@ -798,7 +828,7 @@ public partial class GachaPage : UserControl
             Text = row.Pity.ToString(),
             FontSize = 12.5,
             FontWeight = FontWeights.SemiBold,
-            Foreground = Brush(ColorForFour(row.Pity)),
+            Foreground = Brush(rank == "5" ? ColorFor(row.Pity) : ColorForFour(row.Pity)),
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 10, 0),
         };
