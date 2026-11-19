@@ -10,16 +10,17 @@ namespace MiNest.Services;
 /// <summary>米哈游开放接口通用 HTTP 客户端（DS 签名 / Cookie / 统一解析）</summary>
 public static class MiHoYoHttp
 {
-    // 米游社客户端版本号（社区接口的通用参数；与 TeyvatGuide 现行 2.115.0 对齐）
-    public const string AppVersion = "2.115.0";
-    // 社区接口 X4 DS 盐值（getRequestHeader 默认）。若官方更新导致接口返回 -1/1034，需要同步社区最新的盐值。
+    // 米游社客户端版本号（社区接口的通用参数；与 TeyvatGuide 现行 2.119.0 对齐）
+    public const string AppVersion = "2.119.0";
+    // 社区接口 DS 盐值（与 TeyvatGuide Beta v0.13.1 / 2.119.0 版本线一致）
     public const string Salt = "xV8v4Qu54lUKNrEY0lmhS5TfxyuLbcwB";
     public const string X4Salt = "xV8v4Qu54lUKrEYFZkJhB8cuOh9Asafs";
     public const string X6Salt = "t0qEgfub6cvueAPgR5m9aQWWVciEer7v";
-    public const string K2Salt = "09d39d16528ca0e4900a39ecc07d5062";
+    public const string K2Salt = "24cf11fb14a84f0683e7cadf7c788ba2";
+    public const string LK2Salt = "8fb73233f73e200aa1f818b5705d4442";
     // 设备指纹（TeyvatGuide 用固定占位值）
     public const string DeviceFp = "0000000000000";
-    public const string UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) miHoYoBBS/2.115.0";
+    public const string UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) miHoYoBBS/2.119.0";
 
     private static readonly HttpClient Client = new() { Timeout = TimeSpan.FromSeconds(20) };
 
@@ -27,22 +28,23 @@ public static class MiHoYoHttp
         => GetDsType1(Salt);
 
     /// <summary>DS 类型 1（isSign）：salt&amp;t&amp;r，无 body/query（用于点赞/分享/看帖等签名接口）。
-    /// r 为 6 位随机字母数字（TeyvatGuide getRandomString(6)）。</summary>
+    /// 官方算法为 md5("salt=&lt;salt&gt;&amp;t=..&amp;r=..")，r 为 6 位随机字母数字（TeyvatGuide getRandomString(6)）。</summary>
     public static string GetDsType1(string salt)
     {
         var t = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
         var r = RandomString(6);
-        var md5 = Md5($"{salt}&t={t}&r={r}");
+        var md5 = Md5($"salt={salt}&t={t}&r={r}");
         return $"{t},{r},{md5}";
     }
 
-    /// <summary>DS 类型 2：salt&amp;t&amp;r&amp;b=body&amp;q=query（用于签到等 POST 接口）。
-    /// r 为 6 位随机数字 100000-200000（TeyvatGuide getRandomNumber）。</summary>
+    /// <summary>DS 类型 2：md5("salt=&lt;salt&gt;&amp;t=..&amp;r=..&amp;b=body&amp;q=query")（用于签到等 POST 接口）。
+    /// r 为 6 位随机数字 100000-200000（TeyvatGuide getRandomNumber）。
+    /// 注意 GET 请求应传空 body、query 传排序后的参数串。</summary>
     public static string GetDsType2(string salt, string body, string query = "")
     {
         var t = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
         var r = _rng.Next(100000, 200001).ToString();
-        var md5 = Md5($"{salt}&t={t}&r={r}&b={body}&q={query}");
+        var md5 = Md5($"salt={salt}&t={t}&r={r}&b={body}&q={query}");
         return $"{t},{r},{md5}";
     }
 
@@ -78,7 +80,12 @@ public static class MiHoYoHttp
         req.Headers.TryAddWithoutValidation("x-rpc-device_id", SettingsService.Settings.DeviceId);
         req.Headers.TryAddWithoutValidation("x-rpc-device_fp", DeviceFp);
         req.Headers.TryAddWithoutValidation("x-requested-with", "com.mihoyo.hyperion");
-        req.Headers.TryAddWithoutValidation("DS", GetDs());
+        // GET 请求的 DS 需要把排序后的 query 一起签名（官方公式 salt=&t=&r=&b=&q=）
+        var query = "";
+        var idx = url.IndexOf('?');
+        if (idx > 0)
+            query = string.Join("&", url[(idx + 1)..].Split('&', StringSplitOptions.RemoveEmptyEntries).OrderBy(x => x));
+        req.Headers.TryAddWithoutValidation("DS", GetDsType2(Salt, "", query));
         req.Headers.TryAddWithoutValidation("Referer", "https://www.miyoushe.com/");
         return req;
     }

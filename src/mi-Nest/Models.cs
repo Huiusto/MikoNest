@@ -118,15 +118,22 @@ public class SignRole
     public string Uid { get; set; } = "";
     public string Nickname { get; set; } = "";
     public string Region { get; set; } = "";
+    public string RegionName { get; set; } = "";
     public string GameBiz { get; set; } = "";
     public string Level { get; set; } = "";
 }
 
-/// <summary>一次签到/任务操作的日志行</summary>
+/// <summary>一次签到/任务操作的日志行（显示为 [INFO][HH:mm:ss]文本）</summary>
 public class SignLogEntry
 {
     public string Text { get; set; } = "";
-    public bool IsError { get; set; }
+    public string Level { get; set; } = "INFO";   // INFO / WARN / ERROR
     public DateTime Time { get; set; } = DateTime.Now;
-    public override string ToString() => $"[{Time:HH:mm:ss}] {(IsError ? "✗ " : "✓ ")}{Text}";
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsError => Level == "ERROR";
+
+    public string Line => $"[{Level}][{Time:HH:mm:ss}]{Text}";
+
+    public override string ToString() => Line;
 }
