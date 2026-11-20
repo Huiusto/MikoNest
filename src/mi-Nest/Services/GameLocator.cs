@@ -149,6 +149,12 @@ public static class GameLocator
             "https://webstatic.mihoyo.com/nap/event/e20230424gacha",
             "https://gs.hoyoverse.com/nap/event/e20230424gacha",
         },
+        "bh3" => new[]
+        {
+            "https://webstatic.mihoyo.com/bh3/event/e20210309gacha",
+            "https://webstatic-sea.hoyoverse.com/bh3/event/e20210309gacha",
+            "https://gs.hoyoverse.com/bh3/event/e20210309gacha",
+        },
         _ => Array.Empty<string>(),
     };
 

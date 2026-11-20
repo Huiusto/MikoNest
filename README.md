@@ -4,12 +4,22 @@
 
 # mi-Nest
 
-> 米哈游 PC 多功能桌面客户端（开源）· 基于 WPF + WebView2 · 支持 Visual Studio 2022 / .NET 9
+> 米哈游 PC 多功能桌面客户端（开源）· Windows 版基于 WPF + WebView2，macOS 版基于 Avalonia 11 · .NET 9
 
 mi-Nest 是一个**全部页面都在软件内部展示**的桌面应用：把米哈游生态装进一个软件 —— 启动游戏、逛社区、抽卡记录、每日签到，全都在一个窗口里完成，不用来回开浏览器和客户端。左侧导航栏从上到下依次为 Logo + 名称、网页（后退/向前/刷新）、启动、社区、抽卡记录、任务/签到、米哈游相关、HOYO-MiX、账号、设置。社区、米哈云游、预约游戏、官方平台与第三方工具等网页全部通过内嵌 WebView2 打开，**不会跳转到外部浏览器**。
 
 **免责声明**：
 本项目为个人开源项目，与米哈游官方无关。任务 / 签到等接口为社区公开接口，官方可能随时调整导致部分功能失效，届时需要更新参数后才能继续使用。此外，本软件聚合了大量第三方工具与站点，它们由各自的开发者独立维护，其任何问题（包括服务可用性、数据安全、使用后果等）均与本软件无关，请在使用前自行了解其用途与风险。请勿滥用接口，注意账号安全。
+
+## 下载
+
+前往 [Releases](https://github.com/Huiusto/mi-Nest/releases/latest) 获取安装包：
+
+| 平台 | 文件 |
+| --- | --- |
+| Windows 10/11 x64 | `mi-Nest.exe`（安装程序） |
+| macOS Apple Silicon | `mi-Nest-<version>-osx-arm64.zip` |
+| macOS Intel | `mi-Nest-<version>-osx-x64.zip` |
 
 ## 界面预览
 
@@ -131,8 +141,10 @@ mi-Nest 的多个功能在交互与思路上参考了以下开源项目，实现
 同时感谢米哈游官方启动器公开的 `hyp-connect` 接口与社区维护的接口文档。
 ## 平台支持
 
-- **Windows 10/11（x64）**：当前正式版本，WPF + .NET 9，自包含发布，无需安装 .NET 运行时。
-- **macOS**：暂未提供。现有界面基于 WPF，WPF 只能运行在 Windows 上；提供 macOS 版本需要把 UI 层迁移到 Avalonia 等跨平台框架（约等于一次整体重写），已在规划中，完成后会单独发布 `.dmg`。
+- **Windows 10/11（x64）**：主版本，WPF + WebView2 + .NET 9，自包含发布，无需安装 .NET 运行时。下载 `mi-Nest.exe` 安装包即可。
+- **macOS 11+**：Avalonia 11 跨平台版，提供 Apple Silicon（arm64）与 Intel（x64）两个 `.app` 包，功能为启动页、抽卡统计、设置、账号 / 任务 / 米哈游相关入口。与 Windows 版共用 `settings.json`、`gacha_records.json` 结构。未做代码签名，首次运行需在终端执行 `xattr -cr mi-Nest.app` 与 `chmod +x mi-Nest.app/Contents/MacOS/mi-Nest`，详见 [docs/AVALONIA-macOS.md](docs/AVALONIA-macOS.md)。
+- **跨平台版当前差异**：`.webm` 动态壁纸暂以静态封面呈现；游戏内抽卡缓存抓取、账号登录 / 签到、预下载进度仍由 Windows 版提供。
+
 ## 免责声明
 
 本项目与米哈游官方**无任何关联**，仅供学习与个人使用。该软件存在大量第三方工具，第三方工具的任何问题都与本软件无任何关系。请遵守米哈游用户协议，勿对接口进行高频滥用；账号与数据安全请自行负责。

@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using Microsoft.Web.WebView2.Core;
 using MiNest.Models;
 using MiNest.Services;
@@ -27,6 +28,7 @@ public partial class LaunchPage : UserControl
     private readonly HashSet<string> _runningGames = new();
     private List<LauncherBackgroundService.BackgroundItem> _bgItems = new();
     private int _bgIndex;
+    private bool _useCustom;
     private bool _paused;
     private bool _preparing;
     private LauncherBackgroundService.PreDownloadInfo? _preDownload;
@@ -147,25 +149,39 @@ public partial class LaunchPage : UserControl
             running = _runningGames.Contains(g.Key),
         }).ToList();
 
-        var items = _bgItems.Select(i => new
+        // 自定义壁纸作为第一张排在左侧切换条里，与官方壁纸一起切换
+        var customPath = HasCustomBackground(_selectedKey)
+            ? SettingsService.Settings.GameBackgrounds[_selectedKey]
+            : null;
+        var items = new List<object>();
+        if (customPath != null)
         {
-            id = i.Id,
-            image = ToUrl(i.ImagePath),
-            video = ToUrl(i.VideoPath),
-        }).ToList();
+            items.Add(new
+            {
+                id = "custom",
+                image = ToUrl(customPath),
+                video = (string?)null,
+                custom = true,
+            });
+        }
+        foreach (var i in _bgItems)
+        {
+            items.Add(new { id = i.Id, image = ToUrl(i.ImagePath), video = ToUrl(i.VideoPath), custom = false });
+        }
+
+        var hasCustom = customPath != null;
+        var index = hasCustom && _useCustom ? 0 : (hasCustom ? _bgIndex + 1 : _bgIndex);
 
         var state = new
         {
             games,
             selected = _selectedKey,
             backgrounds = items,
-            index = _bgIndex,
+            index,
             paused = _paused,
-            custom = HasCustomBackground(_selectedKey),
-            customImage = HasCustomBackground(_selectedKey)
-                ? ToUrl(SettingsService.Settings.GameBackgrounds[_selectedKey])
-                : null,
+            custom = hasCustom && _useCustom,
             preparing = _preparing,
+            accent = AccentHex(),
             preDownload = _preDownload == null ? null : new
             {
                 text = $"预下载 {_preDownload.Version} · {FormatSize(_preDownload.SizeBytes)}",
@@ -175,6 +191,14 @@ public partial class LaunchPage : UserControl
 
         var json = JsonSerializer.Serialize(state);
         _ = Web.CoreWebView2.ExecuteScriptAsync($"window.miNestInit({json});");
+    }
+
+    /// <summary>当前主题的强调色（十六进制），供启动页按钮 / 面板跟随软件配色</summary>
+    private static string AccentHex()
+    {
+        var brush = Application.Current.TryFindResource("Accent") as SolidColorBrush;
+        var c = brush?.Color ?? Color.FromRgb(0xD9, 0x4F, 0x5C);
+        return $"#{c.R:X2}{c.G:X2}{c.B:X2}";
     }
 
     private void PushPatch(string json)
@@ -223,6 +247,7 @@ public partial class LaunchPage : UserControl
         _bgIndex = SettingsService.Settings.GameBackgroundIndex.TryGetValue(key, out var saved)
             ? Math.Clamp(saved, 0, Math.Max(0, _bgItems.Count - 1))
             : 0;
+        _useCustom = HasCustomBackground(key);
         _paused = false;
         _ = RefreshOfficialAsync(key);
     }
@@ -230,7 +255,7 @@ public partial class LaunchPage : UserControl
     private async Task RefreshOfficialAsync(string key)
     {
         var meta = await LauncherBackgroundService.RefreshAsync(key);
-        if (meta == null || key != _selectedKey || HasCustomBackground(key)) return;
+        if (meta == null || key != _selectedKey) return;
 
         var oldIndex = _bgIndex;
         _bgItems = meta.Items;
@@ -246,7 +271,20 @@ public partial class LaunchPage : UserControl
     private async Task SelectBackgroundAsync(int index, bool save = true)
     {
         if (index < 0) return;
-        SettingsService.Settings.GameBackgrounds.Remove(_selectedKey);
+
+        // 左侧第一颗圆点 = 用户自定义壁纸
+        var hasCustom = HasCustomBackground(_selectedKey);
+        if (hasCustom && index == 0)
+        {
+            _useCustom = true;
+            _paused = false;
+            PushState();
+            return;
+        }
+        if (hasCustom) index -= 1;
+        if (index >= _bgItems.Count) return;
+
+        _useCustom = false;
         SettingsService.Settings.GameBackgroundIndex[_selectedKey] = index;
         SettingsService.Save();
 
@@ -265,8 +303,19 @@ public partial class LaunchPage : UserControl
         PushState();
     }
 
+    private async Task StepBackgroundAsync(int delta)
+    {
+        var hasCustom = HasCustomBackground(_selectedKey);
+        var total = _bgItems.Count + (hasCustom ? 1 : 0);
+        if (total <= 0) return;
+        var cur = hasCustom ? (_useCustom ? 0 : _bgIndex + 1) : _bgIndex;
+        var next = ((cur + delta) % total + total) % total;
+        await SelectBackgroundAsync(next);
+    }
+
     private async Task EnsureCurrentVideoAsync()
     {
+        if (_useCustom) return;
         var item = _bgIndex >= 0 && _bgIndex < _bgItems.Count ? _bgItems[_bgIndex] : null;
         if (item == null || item.VideoPath != null || string.IsNullOrWhiteSpace(item.VideoUrl)) return;
         _preparing = true;
@@ -313,10 +362,10 @@ public partial class LaunchPage : UserControl
                     await SelectBackgroundAsync((int)ReadNumber(e.WebMessageAsJson, "index"));
                     break;
                 case "bgNext":
-                    if (_bgItems.Count > 0) await SelectBackgroundAsync((_bgIndex + 1) % _bgItems.Count);
+                    await StepBackgroundAsync(1);
                     break;
                 case "bgPrev":
-                    if (_bgItems.Count > 0) await SelectBackgroundAsync((_bgIndex - 1 + _bgItems.Count) % _bgItems.Count);
+                    await StepBackgroundAsync(-1);
                     break;
                 case "pauseToggle":
                     _paused = !_paused;
@@ -376,6 +425,11 @@ public partial class LaunchPage : UserControl
 
     private void SaveCurrentBackground()
     {
+        if (_useCustom)
+        {
+            Toast("当前是自定义壁纸，本身就是本地图片，无需再保存");
+            return;
+        }
         var item = _bgIndex >= 0 && _bgIndex < _bgItems.Count ? _bgItems[_bgIndex] : null;
         var src = item?.VideoPath ?? item?.ImagePath;
         if (src == null || !File.Exists(src))

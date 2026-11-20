@@ -1,0 +1,128 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="MiNest.Avalonia.App"
+             RequestedThemeVariant="Light">
+
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Light">
+          <SolidColorBrush x:Key="PageBgFlat" Color="#F4F6FC"/>
+          <LinearGradientBrush x:Key="PageBg" StartPoint="0%,0%" EndPoint="100%,100%">
+            <GradientStop Color="#FBFCFE" Offset="0"/>
+            <GradientStop Color="#EFF3FB" Offset="0.55"/>
+            <GradientStop Color="#E6ECF9" Offset="1"/>
+          </LinearGradientBrush>
+          <SolidColorBrush x:Key="SidebarBg" Color="#F7FEFFFF"/>
+          <SolidColorBrush x:Key="CardBg" Color="#F7FFFFFF"/>
+          <SolidColorBrush x:Key="CardBorder" Color="#E1E7F2"/>
+          <SolidColorBrush x:Key="InputBg" Color="#F1F4FA"/>
+          <SolidColorBrush x:Key="TextPrimary" Color="#161A23"/>
+          <SolidColorBrush x:Key="TextSecondary" Color="#6A7488"/>
+          <SolidColorBrush x:Key="Divider" Color="#E7EBF4"/>
+          <SolidColorBrush x:Key="Accent" Color="#0A84FF"/>
+          <SolidColorBrush x:Key="AccentSoft" Color="#1F0A84FF"/>
+          <SolidColorBrush x:Key="AccentText" Color="#0A6BD6"/>
+          <SolidColorBrush x:Key="HoverBg" Color="#12000000"/>
+          <SolidColorBrush x:Key="CardShadow" Color="#120E1A33"/>
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Dark">
+          <SolidColorBrush x:Key="PageBgFlat" Color="#0D1117"/>
+          <LinearGradientBrush x:Key="PageBg" StartPoint="0%,0%" EndPoint="100%,100%">
+            <GradientStop Color="#121724" Offset="0"/>
+            <GradientStop Color="#0F1420" Offset="0.55"/>
+            <GradientStop Color="#0A0D15" Offset="1"/>
+          </LinearGradientBrush>
+          <SolidColorBrush x:Key="SidebarBg" Color="#F2141A24"/>
+          <SolidColorBrush x:Key="CardBg" Color="#F21A202B"/>
+          <SolidColorBrush x:Key="CardBorder" Color="#2A3242"/>
+          <SolidColorBrush x:Key="InputBg" Color="#FF202734"/>
+          <SolidColorBrush x:Key="TextPrimary" Color="#ECF1FA"/>
+          <SolidColorBrush x:Key="TextSecondary" Color="#98A3B7"/>
+          <SolidColorBrush x:Key="Divider" Color="#262E3C"/>
+          <SolidColorBrush x:Key="Accent" Color="#0A84FF"/>
+          <SolidColorBrush x:Key="AccentSoft" Color="#330A84FF"/>
+          <SolidColorBrush x:Key="AccentText" Color="#6FB6FF"/>
+          <SolidColorBrush x:Key="HoverBg" Color="#14FFFFFF"/>
+          <SolidColorBrush x:Key="CardShadow" Color="#40000000"/>
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+
+      <FontFamily x:Key="UiFont">Microsoft YaHei UI, PingFang SC, .AppleSystemUIFont, Inter, sans-serif</FontFamily>
+    </ResourceDictionary>
+  </Application.Resources>
+
+  <Application.Styles>
+    <FluentTheme />
+
+    <!-- 正文 -->
+    <Style Selector="TextBlock">
+      <Setter Property="FontFamily" Value="{DynamicResource UiFont}"/>
+      <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+    </Style>
+    <Style Selector="TextBlock.muted">
+      <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+    </Style>
+    <Style Selector="TextBlock.h1">
+      <Setter Property="FontSize" Value="24"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="LetterSpacing" Value="0.2"/>
+    </Style>
+    <Style Selector="TextBlock.h2">
+      <Setter Property="FontSize" Value="15"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+
+    <!-- 卡片 -->
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="{DynamicResource CardBg}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource CardBorder}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="14"/>
+      <Setter Property="Padding" Value="16"/>
+    </Style>
+
+    <!-- 主按钮 -->
+    <Style Selector="Button.primary">
+      <Setter Property="Background" Value="{DynamicResource Accent}"/>
+      <Setter Property="Foreground" Value="White"/>
+      <Setter Property="FontSize" Value="13.5"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="CornerRadius" Value="10"/>
+      <Setter Property="Padding" Value="18,9"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="Cursor" Value="Hand"/>
+    </Style>
+
+    <!-- 次级按钮 -->
+    <Style Selector="Button.ghost">
+      <Setter Property="Background" Value="{DynamicResource InputBg}"/>
+      <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+      <Setter Property="FontSize" Value="12.5"/>
+      <Setter Property="CornerRadius" Value="10"/>
+      <Setter Property="Padding" Value="14,8"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource CardBorder}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="Cursor" Value="Hand"/>
+    </Style>
+
+    <!-- 侧栏导航 -->
+    <Style Selector="Button.nav">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+      <Setter Property="CornerRadius" Value="10"/>
+      <Setter Property="Padding" Value="12,8"/>
+      <Setter Property="HorizontalAlignment" Value="Stretch"/>
+      <Setter Property="HorizontalContentAlignment" Value="Left"/>
+      <Setter Property="FontSize" Value="12.5"/>
+      <Setter Property="Cursor" Value="Hand"/>
+    </Style>
+    <Style Selector="Button.nav.active /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource AccentSoft}"/>
+    </Style>
+    <Style Selector="Button.nav.active">
+      <Setter Property="Foreground" Value="{DynamicResource AccentText}"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+  </Application.Styles>
+</Application>

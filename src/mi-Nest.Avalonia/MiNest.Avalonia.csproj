@@ -1,0 +1,32 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationManifest Condition="'$(OS)' == 'Windows_NT'">app.manifest</ApplicationManifest>
+    <AssemblyName>mi-Nest</AssemblyName>
+    <Version>0.1.13</Version>
+    <AssemblyVersion>0.1.13.0</AssemblyVersion>
+    <RootNamespace>MiNest.Avalonia</RootNamespace>
+    <RuntimeIdentifiers>win-x64;osx-arm64;osx-x64;linux-x64</RuntimeIdentifiers>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.4" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.4" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.4" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.4" />
+    <PackageReference Include="Avalonia.Diagnostics" Version="11.3.4" Condition="'$(Configuration)' == 'Debug'" />
+  </ItemGroup>
+
+  <!-- 复用 WPF 版里已经与平台无关的业务层（设置、抽卡库、官方壁纸、本地化） -->
+  <ItemGroup>
+    <Compile Include="..\mi-Nest\Models.cs" Link="Shared\Models.cs" />
+    <Compile Include="..\mi-Nest\AppPaths.cs" Link="Shared\AppPaths.cs" />
+    <Compile Include="..\mi-Nest\Services\SettingsService.cs" Link="Shared\Services\SettingsService.cs" />
+    <Compile Include="..\mi-Nest\Services\GachaStore.cs" Link="Shared\Services\GachaStore.cs" />
+    <Compile Include="..\mi-Nest\Services\LauncherBackgroundService.cs" Link="Shared\Services\LauncherBackgroundService.cs" />
+  </ItemGroup>
+</Project>

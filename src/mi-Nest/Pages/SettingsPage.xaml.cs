@@ -4,7 +4,9 @@ using System.IO;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using MiNest.Services;
@@ -24,11 +26,47 @@ public partial class SettingsPage : UserControl
         InitializeComponent();
         _main = main;
         Loaded += OnLoaded;
+        Loaded += HookOutsideClick;
+        Unloaded += (_, _) => { try { SetLangDrawer(false); } catch { } };
+    }
+
+    private bool _outsideClickHooked;
+
+    /// <summary>挂到主窗口上，实现「点击界面其它任意位置自动收起语言浮层」</summary>
+    private void HookOutsideClick(object sender, RoutedEventArgs e)
+    {
+        if (_outsideClickHooked) return;
+        var window = Window.GetWindow(this);
+        if (window == null) return;
+        window.PreviewMouseDown += Window_PreviewMouseDown;
+        _outsideClickHooked = true;
+    }
+
+    private void Window_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (!LangDrawer.IsOpen) return;
+        var sourced = e.OriginalSource as DependencyObject;
+        if (sourced != null && BtnLangToggle != null && IsInsideTree(BtnLangToggle, sourced)) return;
+        if (LangDrawer.Child is DependencyObject content && sourced != null && IsInsideTree(content, sourced)) return;
+        SetLangDrawer(false);
+    }
+
+    private static bool IsInsideTree(DependencyObject root, DependencyObject node)
+    {
+        while (node != null)
+        {
+            if (ReferenceEquals(node, root)) return true;
+            node = node is System.Windows.Media.Visual || node is System.Windows.Media.Media3D.Visual3D
+                ? VisualTreeHelper.GetParent(node)
+                : LogicalTreeHelper.GetParent(node);
+        }
+        return false;
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         BuildThemePicker();
+        BuildLanguagePicker();
         TxtVersion.Text = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.1.13";
         TxtDataDir.Text = AppPaths.DataDir;
         // 初始化同步设置值时不触发写入事件（避免误存）
@@ -267,41 +305,55 @@ public partial class SettingsPage : UserControl
             {
                 GroupName = "theme",
                 Margin = new Thickness(0, 4, 14, 4),
-                IsChecked = SettingsService.Settings.Theme == theme,
                 Cursor = System.Windows.Input.Cursors.Hand,
                 VerticalContentAlignment = VerticalAlignment.Center,
                 Style = (Style)FindResource("ThemeSwatchRadio"),
             };
-            rb.Checked += (_, _) =>
-            {
-                ThemeService.Apply(theme);
-                RefreshThemeRings();
-            };
+
+            Brush swatchBrush = theme == "System"
+                ? new LinearGradientBrush(
+                    new GradientStopCollection
+                    {
+                        new GradientStop(Color.FromRgb(0xFF, 0xFF, 0xFF), 0),
+                        new GradientStop(Color.FromRgb(0xFF, 0xFF, 0xFF), 0.49),
+                        new GradientStop(Color.FromRgb(0x1C, 0x1F, 0x26), 0.51),
+                        new GradientStop(Color.FromRgb(0x1C, 0x1F, 0x26), 1),
+                    }, 90)
+                : (Brush)new BrushConverter().ConvertFromString(ThemeService.ThemeColors[i])!;
 
             var swatch = new Border
             {
                 Width = 16,
                 Height = 16,
                 CornerRadius = new CornerRadius(8),
-                Background = (Brush)new BrushConverter().ConvertFromString(ThemeService.ThemeColors[i])!,
+                Background = swatchBrush,
                 BorderBrush = Brushes.Transparent,
                 BorderThickness = new Thickness(2),
                 Margin = new Thickness(-2, 0, 0, 0),
                 VerticalAlignment = VerticalAlignment.Center,
             };
-            var sp = new StackPanel { Orientation = Orientation.Horizontal };
-            sp.Children.Add(swatch);
-            sp.Children.Add(new TextBlock
+            var topicText = new TextBlock
             {
                 Text = ThemeService.ThemeNames[i],
                 FontSize = 13,
                 Margin = new Thickness(8, 0, 0, 0),
                 VerticalAlignment = VerticalAlignment.Center,
-                Foreground = (Brush)FindResource("TextPrimary"),
-            });
+            };
+            topicText.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimary");
+            var sp = new StackPanel { Orientation = Orientation.Horizontal };
+            sp.Children.Add(swatch);
+            sp.Children.Add(topicText);
             rb.Content = sp;
             System.Windows.Automation.AutomationProperties.SetName(rb, ThemeService.ThemeNames[i]);
+
+            // 先入树、再置选中、最后挂事件：避免成组瞬间的空触发写坏设置
             ThemePanel.Children.Add(rb);
+            if (SettingsService.Settings.Theme == theme) rb.IsChecked = true;
+            rb.Checked += (_, _) =>
+            {
+                ThemeService.Apply(theme);
+                RefreshThemeRings();
+            };
         }
         RefreshThemeRings();
     }
@@ -316,6 +368,107 @@ public partial class SettingsPage : UserControl
             if (sp.Children.Count == 0 || sp.Children[0] is not Border swatch) continue;
             swatch.BorderBrush = rb.IsChecked == true ? accent : Brushes.Transparent;
         }
+    }
+
+    /// <summary>语言切换：跟随系统 + 简体/繁體/日本語/English/한국어/Русский/Deutsch/Italiano/ไทย/Tiếng Việt</summary>
+    private void BuildLanguagePicker()
+    {
+        LangPanel.Children.Clear();
+        for (var i = 0; i < LocalizationService.Languages.Length; i++)
+        {
+            var code = LocalizationService.Languages[i].Code;
+            var display = LocalizationService.Languages[i].Display;
+            var rb = new RadioButton
+            {
+                GroupName = "ui_lang",
+                Margin = new Thickness(0, 1, 0, 1),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                Cursor = System.Windows.Input.Cursors.Hand,
+                VerticalContentAlignment = VerticalAlignment.Center,
+                HorizontalContentAlignment = HorizontalAlignment.Stretch,
+                Style = (Style)FindResource("ThemeSwatchRadio"),
+            };
+
+            var dot = new Border
+            {
+                Width = 7,
+                Height = 7,
+                CornerRadius = new CornerRadius(4),
+                Background = Brushes.Transparent,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 7, 0),
+            };
+            var sp = new StackPanel { Orientation = Orientation.Horizontal };
+            sp.Children.Add(dot);
+            var langText = new TextBlock
+            {
+                Text = display,
+                FontSize = 13,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            langText.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimary");
+            sp.Children.Add(langText);
+            rb.Content = sp;
+            System.Windows.Automation.AutomationProperties.SetName(rb, display);
+
+            // 先入树、再置选中状态、最后挂事件：避免入组瞬间的空触发写坏设置
+            LangPanel.Children.Add(rb);
+            if (SettingsService.Settings.Language == code) rb.IsChecked = true;
+
+            rb.Checked += (_, _) =>
+            {
+                SettingsService.Settings.Language = code;
+                SettingsService.Save();
+                LocalizationService.Init(code);
+                TxtLangCurrent.Text = $"当前：{display}";
+                TxtLangHint.Text = code.Length == 0
+                    ? "已设为「跟随系统」，重新打开 mi-Nest 后按系统语言显示。"
+                    : $"已切换为 {display}，重新打开 mi-Nest 后全部界面生效。";
+                TxtLangHint.Visibility = Visibility.Visible;
+                RefreshLangDots();
+                SetLangDrawer(false);
+            };
+        }
+
+        var current = SettingsService.Settings.Language;
+        foreach (var lang in LocalizationService.Languages)
+        {
+            if (lang.Code == current)
+            {
+                TxtLangCurrent.Text = $"当前：{lang.Display}";
+                break;
+            }
+        }
+
+        RefreshLangDots();
+        SetLangDrawer(false);
+    }
+
+    /// <summary>语言列表里给选中项点亮一个主题色圆点</summary>
+    private void RefreshLangDots()
+    {
+        var accent = (Brush)FindResource("Accent");
+        foreach (var child in LangPanel.Children)
+        {
+            if (child is not RadioButton rb || rb.Content is not StackPanel sp) continue;
+            if (sp.Children.Count == 0 || sp.Children[0] is not Border dot) continue;
+            dot.Background = rb.IsChecked == true ? accent : Brushes.Transparent;
+        }
+    }
+
+    private void BtnLangToggle_Click(object sender, RoutedEventArgs e) => SetLangDrawer(!LangDrawer.IsOpen);
+
+    /// <summary>点击界面其它任意位置时（Popup 自动关闭）同步恢复按钮文案</summary>
+    private void LangDrawer_Closed(object? sender, EventArgs e)
+    {
+        if (BtnLangToggle != null) BtnLangToggle.Content = "切换";
+    }
+
+    /// <summary>展开 / 收起语言浮层（Popup 浮在最上层，不推挤下面的内容）</summary>
+    private void SetLangDrawer(bool open)
+    {
+        LangDrawer.IsOpen = open;
+        BtnLangToggle.Content = open ? "收起" : "切换";
     }
 
     private void BtnDevHome_Click(object sender, RoutedEventArgs e)

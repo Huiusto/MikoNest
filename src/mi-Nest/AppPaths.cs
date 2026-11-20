@@ -6,9 +6,11 @@ namespace MiNest;
 /// <summary>应用数据目录（默认 %AppData%\mi-Nest，可在 设置-应用信息 更改）</summary>
 public static class AppPaths
 {
-    /// <summary>默认数据目录</summary>
-    public static string DefaultDataDir { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "mi-Nest");
+    /// <summary>默认数据目录（Windows: %AppData%\mi-Nest；macOS: ~/Library/Application Support/mi-Nest）</summary>
+    public static string DefaultDataDir { get; } = OperatingSystem.IsMacOS()
+        ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            "Library", "Application Support", "mi-Nest")
+        : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "mi-Nest");
 
     /// <summary>当前生效的数据目录（启动时按 settings.json 的 DataDirOverride 覆盖）</summary>
     public static string DataDir { get; set; } = DefaultDataDir;

@@ -18,10 +18,14 @@ public static class LocalizationService
         ("", "跟随系统"),
         ("zh-Hans", "简体中文"),
         ("zh-Hant", "繁體中文"),
-        ("en", "English"),
         ("ja", "日本語"),
+        ("en", "English"),
         ("ko", "한국어"),
         ("ru", "Русский"),
+        ("de", "Deutsch"),
+        ("it", "Italiano"),
+        ("th", "ภาษาไทย"),
+        ("vi", "Tiếng Việt"),
     };
 
     /// <summary>当前生效语言代码（Settings.Language；"" = 跟随系统）</summary>
@@ -52,6 +56,10 @@ public static class LocalizationService
         if (name.StartsWith("ja", StringComparison.OrdinalIgnoreCase)) return "ja";
         if (name.StartsWith("ko", StringComparison.OrdinalIgnoreCase)) return "ko";
         if (name.StartsWith("ru", StringComparison.OrdinalIgnoreCase)) return "ru";
+        if (name.StartsWith("de", StringComparison.OrdinalIgnoreCase)) return "de";
+        if (name.StartsWith("it", StringComparison.OrdinalIgnoreCase)) return "it";
+        if (name.StartsWith("th", StringComparison.OrdinalIgnoreCase)) return "th";
+        if (name.StartsWith("vi", StringComparison.OrdinalIgnoreCase)) return "vi";
         return "en";
     }
 
@@ -177,6 +185,58 @@ public static class LocalizationService
             ["web_back"] = "Назад",
             ["web_forward"] = "Вперёд",
             ["web_refresh"] = "Обновить",
+        },
+        ["de"] = new Dictionary<string, string>
+        {
+            ["nav_launch"] = "Start",
+            ["nav_community"] = "Community",
+            ["nav_gacha"] = "Wunschverlauf",
+            ["nav_tasks"] = "Aufgaben/Check-in",
+            ["nav_mhy"] = "HoYo-Links",
+            ["nav_account"] = "Konto",
+            ["nav_settings"] = "Einstellungen",
+            ["web_back"] = "Zurück",
+            ["web_forward"] = "Vorwärts",
+            ["web_refresh"] = "Aktualisieren",
+        },
+        ["it"] = new Dictionary<string, string>
+        {
+            ["nav_launch"] = "Avvia",
+            ["nav_community"] = "Community",
+            ["nav_gacha"] = "Cronologia desideri",
+            ["nav_tasks"] = "Attività/Presenze",
+            ["nav_mhy"] = "Link HoYo",
+            ["nav_account"] = "Account",
+            ["nav_settings"] = "Impostazioni",
+            ["web_back"] = "Indietro",
+            ["web_forward"] = "Avanti",
+            ["web_refresh"] = "Aggiorna",
+        },
+        ["th"] = new Dictionary<string, string>
+        {
+            ["nav_launch"] = "เริ่มเกม",
+            ["nav_community"] = "คอมมิวนิตี้",
+            ["nav_gacha"] = "ประวัติการอัญเชิญ",
+            ["nav_tasks"] = "ภารกิจ/เช็คอิน",
+            ["nav_mhy"] = "ลิงก์ HoYo",
+            ["nav_account"] = "บัญชี",
+            ["nav_settings"] = "ตั้งค่า",
+            ["web_back"] = "ย้อนกลับ",
+            ["web_forward"] = "ไปข้างหน้า",
+            ["web_refresh"] = "รีเฟรช",
+        },
+        ["vi"] = new Dictionary<string, string>
+        {
+            ["nav_launch"] = "Khởi chạy",
+            ["nav_community"] = "Cộng đồng",
+            ["nav_gacha"] = "Lịch sử cầu nguyện",
+            ["nav_tasks"] = "Nhiệm vụ/Điểm danh",
+            ["nav_mhy"] = "Liên kết HoYo",
+            ["nav_account"] = "Tài khoản",
+            ["nav_settings"] = "Cài đặt",
+            ["web_back"] = "Quay lại",
+            ["web_forward"] = "Tiến tới",
+            ["web_refresh"] = "Làm mới",
         },
     };
 }

@@ -44,6 +44,7 @@ public partial class App : Application
         SettingsService.Load();
         LocalizationService.Init(SettingsService.Settings.Language);
         ThemeService.Apply(SettingsService.Settings.Theme);
+        ThemeService.StartSystemWatcher();
 
         // 确保数据目录存在
         Directory.CreateDirectory(AppPaths.DataDir);

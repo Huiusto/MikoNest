@@ -35,33 +35,56 @@ public static class GachaStore
             {
                 var json = File.ReadAllText(StorePath);
                 var loaded = JsonSerializer.Deserialize<StoreFile>(json);
-                if (loaded != null) _store = loaded;
-                // 主文件被写空时用备份兜底，避免历史记录凭空消失
-                if (_store.Records.Count == 0 && File.Exists(StorePath + ".bak"))
+                if (loaded != null && loaded.Records.Count > 0) { _store = loaded; return; }
+                // 主文件为空或被写坏时依次用备份 / 最近一次有效存档兜底，避免历史记录凭空消失
+                foreach (var path in new[] { StorePath + ".bak", StorePath + ".lastgood" })
                 {
-                    var bak = JsonSerializer.Deserialize<StoreFile>(File.ReadAllText(StorePath + ".bak"));
-                    if (bak?.Records.Count > 0) _store = bak;
+                    if (!File.Exists(path)) continue;
+                    try
+                    {
+                        var bak = JsonSerializer.Deserialize<StoreFile>(File.ReadAllText(path));
+                        if (bak?.Records.Count > 0) { _store = bak; return; }
+                    }
+                    catch { }
                 }
+                if (loaded != null) _store = loaded;
             }
         }
         catch
         {
-            _store = new StoreFile();
+            // 读取失败（例如文件被占用）时保留内存里已有数据，绝不用空库覆盖
+            foreach (var path in new[] { StorePath + ".bak", StorePath + ".lastgood" })
+            {
+                try
+                {
+                    if (!File.Exists(path)) continue;
+                    var bak = JsonSerializer.Deserialize<StoreFile>(File.ReadAllText(path));
+                    if (bak?.Records.Count > 0) { _store = bak; return; }
+                }
+                catch { }
+            }
         }
     }
 
-    public static void Save()
+    public static void Save(bool force = false)
     {
         try
         {
             Directory.CreateDirectory(AppPaths.DataDir);
+            // 非显式清空时，不允许用空库覆盖有记录的主文件
+            if (!force && _store.Records.Count == 0 && File.Exists(StorePath) && new FileInfo(StorePath).Length > 2)
+                return;
             // 覆盖前留一份备份，避免异常写空导致历史记录彻底丢失
             if (File.Exists(StorePath))
             {
                 try { File.Copy(StorePath, StorePath + ".bak", overwrite: true); } catch { }
             }
-            File.WriteAllText(StorePath,
-                JsonSerializer.Serialize(_store, new JsonSerializerOptions { WriteIndented = true }));
+            var text = JsonSerializer.Serialize(_store, new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(StorePath, text);
+            if (_store.Records.Count > 0)
+            {
+                try { File.WriteAllText(StorePath + ".lastgood", text); } catch { }
+            }
         }
         catch
         {
@@ -93,21 +116,30 @@ public static class GachaStore
         if (list.Count == 0) return 0; // 空拉取不覆盖本地库已有记录
 
         var existing = _store.Records
-            .Select(r => $"{r.GameKey}|{r.Uid}|{r.Id}")
-            .ToHashSet();
+            .GroupBy(r => $"{r.GameKey}|{r.Uid}|{r.Id}")
+            .ToDictionary(g => g.Key, g => g.First());
         var added = 0;
+        var updated = 0;
         foreach (var it in items)
         {
             if (string.IsNullOrWhiteSpace(it.Id) || string.IsNullOrWhiteSpace(it.Uid)) continue;
             var key = $"{it.GameKey}|{it.Uid}|{it.Id}";
-            if (!existing.Contains(key))
+            if (!existing.TryGetValue(key, out var old))
             {
-                existing.Add(key);
+                existing[key] = it;
                 _store.Records.Add(it);
                 added++;
             }
+            else if (old.RankType != it.RankType || old.GachaType != it.GachaType || old.Name != it.Name)
+            {
+                // 修正历史记录（例如绝区零星级换算、重映池归并）
+                old.RankType = it.RankType;
+                old.GachaType = it.GachaType;
+                old.Name = it.Name;
+                updated++;
+            }
         }
-        Save();
+        if (added > 0 || updated > 0) Save();
         return added;
     }
 
@@ -116,7 +148,7 @@ public static class GachaStore
     {
         var removed = _store.Records.RemoveAll(r =>
             r.Uid == uid && (gameKey == null || r.GameKey == gameKey));
-        if (removed > 0) Save();
+        if (removed > 0) Save(force: true);
         return removed;
     }
 

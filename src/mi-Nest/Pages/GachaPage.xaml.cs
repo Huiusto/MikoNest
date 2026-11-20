@@ -208,6 +208,8 @@ public partial class GachaPage : UserControl
             TxtStatus.Text = "本地库还是空的：先在游戏内打开一次「抽卡记录」页面，再回来点「更新记录」；也可以从「▾ → 导入 UIGF / SRGF 文件」导入已有记录。";
         else if (uids.Count > 1 && uid != null)
             TxtStatus.Text = $"已按 UID {uid} 单独统计保底（共 {uids.Count} 个账号，可在右上角切换 UID）";
+        else if (TxtStatus.Text.StartsWith("本地库还是空的"))
+            TxtStatus.Text = "";
 
         BannerPanel.Children.Clear();
         _columns.Clear();
@@ -890,7 +892,10 @@ public partial class GachaPage : UserControl
         Grid.SetColumn(pityBlock, 2);
         g.Children.Add(pityBlock);
 
-        return new Border { Child = g, Background = Brushes.Transparent };
+        var stack = new StackPanel();
+        stack.Children.Add(g);
+        stack.Children.Add(BuildPityBar(row.Pity));
+        return new Border { Child = stack, Background = Brushes.Transparent };
     }
 
     private void BeyondScroll_SizeChanged(object sender, SizeChangedEventArgs e) => ApplyBeyondWidth();
@@ -1005,14 +1010,35 @@ public partial class GachaPage : UserControl
     private static string ColorFor(int pity)
         => pity >= 90 ? "#C0453F" : pity >= 74 ? "#D08A3E" : "#3F9B6B";
 
+    /// <summary>原神常驻 5★ 角色 / 武器：出现这些就不标 UP</summary>
+    private static readonly HashSet<string> StandardFiveStar = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "迪卢克", "莫娜", "七七", "刻晴", "提纳里", "迪希雅", "梦见月瑞希",
+        "天空之刃", "天空之脊", "天空之翼", "天空之卷", "天空之傲",
+        "风鹰剑", "阿莫斯之弓", "四风原典", "和璞鸢", "狼的末路",
+    };
+
+    /// <summary>限定角色 / 限定武器池里，非常驻的 5★ 即为当期 UP</summary>
+    private bool IsUpFiveStar(GachaItem item)
+    {
+        if (_beyondMode) return false;
+        if (_gameKey != "genshin") return false;
+        if (item.RankType != "5") return false;
+        var pool = item.GachaType ?? "";
+        if (pool is not ("301" or "400" or "302")) return false;
+        return !StandardFiveStar.Contains(item.Name.Trim());
+    }
+
     private Border BuildRow(RowVm row)
     {
         var rank = row.Item.RankType;
         var rankColor = RankColor.TryGetValue(rank, out var rc) ? rc : "#7C93B0";
+        var showUp = IsUpFiveStar(row.Item);
 
-        var g = new Grid { Margin = new Thickness(0, 0, 0, 4), Height = 32 };
+        var g = new Grid { Margin = new Thickness(0, 0, 0, 2), Height = 32 };
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        if (showUp) g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         g.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
         var rowBg = new Border
@@ -1020,7 +1046,7 @@ public partial class GachaPage : UserControl
             CornerRadius = new CornerRadius(6),
             Background = Brush(RankSoft.TryGetValue(rank, out var soft) ? soft : "#00000000"),
         };
-        Grid.SetColumnSpan(rowBg, 3);
+        Grid.SetColumnSpan(rowBg, g.ColumnDefinitions.Count);
         g.Children.Add(rowBg);
 
         if (ChkShowIcon.IsChecked == true)
@@ -1065,6 +1091,30 @@ public partial class GachaPage : UserControl
         Grid.SetColumn(nameBlock, 1);
         g.Children.Add(nameBlock);
 
+        if (showUp)
+        {
+            var upBadge = new Border
+            {
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 6, 0),
+                Padding = new Thickness(5, 1, 5, 1),
+                CornerRadius = new CornerRadius(4),
+                Background = Brush("#1FD9A93C"),
+                BorderBrush = Brush("#66D9A93C"),
+                BorderThickness = new Thickness(0.8),
+                ToolTip = "当期 UP",
+            };
+            upBadge.Child = new TextBlock
+            {
+                Text = "UP!",
+                FontSize = 10,
+                FontWeight = FontWeights.Bold,
+                Foreground = Brush("#D9A93C"),
+            };
+            Grid.SetColumn(upBadge, 2);
+            g.Children.Add(upBadge);
+        }
+
         var pityBlock = new TextBlock
         {
             Text = row.Pity.ToString(),
@@ -1074,10 +1124,41 @@ public partial class GachaPage : UserControl
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 9, 0),
         };
-        Grid.SetColumn(pityBlock, 2);
+        Grid.SetColumn(pityBlock, showUp ? 3 : 2);
         g.Children.Add(pityBlock);
 
-        return new Border { Child = g, Background = Brushes.Transparent };
+        var stack = new StackPanel();
+        stack.Children.Add(g);
+        stack.Children.Add(BuildPityBar(row.Pity));
+        return new Border { Child = stack, Background = Brushes.Transparent };
+    }
+
+    /// <summary>每行数据下的保底进度条：0-70 绿色，71-90 红色（大于 90 视为日志缺口，按满格红处理）</summary>
+    private FrameworkElement BuildPityBar(int pity)
+    {
+        var value = Math.Clamp(pity, 0, 90);
+        var barGrid = new Grid { Height = 3, Margin = new Thickness(8, 0, 8, 7) };
+        barGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(value, GridUnitType.Star) });
+        barGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(90 - value, GridUnitType.Star) });
+
+        var track = new Border
+        {
+            CornerRadius = new CornerRadius(1.5),
+            Background = Brush("#22808080"),
+            Opacity = 0.55,
+        };
+        Grid.SetColumnSpan(track, 2);
+        barGrid.Children.Add(track);
+
+        var fill = new Border
+        {
+            CornerRadius = new CornerRadius(1.5),
+            Background = Brush(value <= 70 ? "#3F9B6B" : "#C0453F"),
+        };
+        barGrid.Children.Add(fill);
+
+        barGrid.ToolTip = $"保底进度 {pity}/90";
+        return barGrid;
     }
 
     // ================= 拉取 / 导入导出 =================
