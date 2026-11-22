@@ -97,12 +97,12 @@
                                VerticalAlignment="Center" Margin="14,0,0,0"/>
                 </StackPanel>
 
-                <!-- 网页扫码登录（推荐，官方页面 100% 可用） -->
+                <!-- 网页扫码登录（备用；网页登录态通常不含 stoken） -->
                 <Border Style="{StaticResource SurfaceCard}" Padding="18" Margin="0,0,0,14">
                     <StackPanel>
-                        <TextBlock Text="网页扫码登录（推荐）" FontWeight="SemiBold" FontSize="14"
+                        <TextBlock Text="网页扫码登录（备用）" FontWeight="SemiBold" FontSize="14"
                                    Foreground="{DynamicResource TextPrimary}"/>
-                        <TextBlock Text="在软件内打开米游社官方登录页，使用手机「米游社」App 扫码（或手机号验证码）登录，成功后自动导入账号，最稳定。"
+                        <TextBlock Text="在软件内打开米游社官方登录页扫码登录。网页登录态一般不含 stoken，只能用于社区浏览；「任务/签到」与抽卡记录请使用上方「扫码登录」（米哈游通行证 App）或「Cookie 登录」。"
                                    FontSize="12" Foreground="{DynamicResource TextSecondary}" Margin="0,6,0,0"
                                    TextWrapping="Wrap" MaxWidth="520"/>
                         <Button x:Name="BtnWebLogin" Content="打开官方登录页并自动导入"

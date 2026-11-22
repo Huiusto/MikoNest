@@ -16,7 +16,7 @@
                     <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
                         <TextBlock Text="Starward" FontSize="22" FontWeight="Bold"
                                    Foreground="{DynamicResource TextPrimary}"/>
-                        <TextBlock Text="米哈游 PC 启动器 · 源代码已内置到 mi-Nest"
+                        <TextBlock Text="米哈游 PC 启动器 · 源代码已内置到 MikoNest"
                                    FontSize="12.5" Margin="0,4,0,0"
                                    Foreground="{DynamicResource TextSecondary}"/>
                     </StackPanel>
@@ -35,7 +35,7 @@
                         <StackPanel>
                             <TextBlock Text="基于 Scighost/Starward（MIT 开源协议）的源代码移植" FontSize="14"
                                        FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"/>
-                            <TextBlock Text="已把 GameRecord.DailyNote（DS2 动态签名 + HyperionClient 请求头）、跨游戏抽卡记录本地库、游戏定位与启动等核心模块移植进 mi-Nest，数据与本机米哈游账号同步。" FontSize="12.5" Margin="0,8,0,0" TextWrapping="Wrap" LineHeight="21" Foreground="{DynamicResource TextSecondary}"/>
+                            <TextBlock Text="已把 GameRecord.DailyNote（DS2 动态签名 + HyperionClient 请求头）、跨游戏抽卡记录本地库、游戏定位与启动等核心模块移植进 MikoNest，数据与本机米哈游账号同步。" FontSize="12.5" Margin="0,8,0,0" TextWrapping="Wrap" LineHeight="21" Foreground="{DynamicResource TextSecondary}"/>
                         </StackPanel>
                         <Button Grid.Column="1" Content="在软件内打开 GitHub"
                                 Style="{StaticResource LinkButton}" VerticalAlignment="Center"

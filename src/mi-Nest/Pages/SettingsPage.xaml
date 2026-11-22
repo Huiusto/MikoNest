@@ -63,7 +63,8 @@
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <Border Grid.Column="0" VerticalAlignment="Top" Style="{StaticResource SurfaceCard}" Padding="18,14">
+                    <Border Grid.Column="0" Style="{StaticResource SurfaceCard}" Padding="16,12"
+                            MinHeight="190" VerticalAlignment="Stretch">
                         <StackPanel>
                             <TextBlock Text="界面配色" Style="{StaticResource SectionTitle}"/>
                             <WrapPanel x:Name="ThemePanel"/>
@@ -74,8 +75,9 @@
                     </Border>
 
                     <!-- 语言切换：点「切换」按钮，在浮层里自选语言（浮层不占布局） -->
-                    <Border Grid.Column="1" Width="236" VerticalAlignment="Top" Margin="12,0,0,0"
-                            Style="{StaticResource SurfaceCard}" Padding="16,14">
+                    <Border Grid.Column="1" Width="236" Margin="12,0,0,0"
+                            Style="{StaticResource SurfaceCard}" Padding="16,12"
+                            MinHeight="190" VerticalAlignment="Stretch">
                         <StackPanel>
                             <TextBlock Text="语言切换" Style="{StaticResource SectionTitle}"/>
                             <TextBlock x:Name="TxtLangCurrent" Text="当前：跟随系统"
@@ -113,8 +115,9 @@
                         </StackPanel>
                     </Border>
 
-                    <Border Grid.Column="2" Width="236" VerticalAlignment="Top" Margin="12,0,0,0"
-                            Style="{StaticResource SurfaceCard}" Padding="16,14">
+                    <Border Grid.Column="2" Width="236" Margin="12,0,0,0"
+                            Style="{StaticResource SurfaceCard}" Padding="16,12"
+                            MinHeight="190" VerticalAlignment="Stretch">
                     <StackPanel>
                         <TextBlock Text="应用维护" Style="{StaticResource SectionTitle}"/>
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
@@ -130,7 +133,7 @@
                         <TextBlock x:Name="TxtUpdateHint" Width="128" Margin="0,4,0,0" FontSize="11"
                                    TextAlignment="Center" TextWrapping="Wrap" Visibility="Collapsed"
                                    Foreground="{DynamicResource TextSecondary}"/>
-                        <Button Content="卸载 mi-Nest" Width="128" Padding="12,6" Margin="0,6,0,0"
+                        <Button Content="卸载 MikoNest" Width="128" Padding="12,6" Margin="0,6,0,0"
                                 Style="{StaticResource DangerButton}" Click="BtnUninstall_Click"/>
                     </StackPanel>
                     </Border>
@@ -161,7 +164,7 @@
 
                             <TextBlock Text="启动设置" FontSize="13.5" FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextPrimary}" Margin="0,14,0,0"/>
-                            <CheckBox x:Name="ChkAutoStart" Content="开机自动运行 mi-Nest"
+                            <CheckBox x:Name="ChkAutoStart" Content="开机自动运行 MikoNest"
                                       Margin="0,8,0,0" FontSize="13"
                                       Foreground="{DynamicResource TextPrimary}"
                                       Checked="ChkAutoStart_Changed" Unchecked="ChkAutoStart_Changed"/>
@@ -226,7 +229,7 @@
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
                                 <TextBlock Grid.Row="0" Text="名称" Foreground="{DynamicResource TextSecondary}" Margin="0,4"/>
-                                <TextBlock Grid.Row="0" Grid.Column="1" Text="mi-Nest（米哈游 PC 多功能桌面客户端）"
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="MikoNest（米哈游 PC 多功能桌面客户端）"
                                            Foreground="{DynamicResource TextPrimary}" Margin="0,4" TextWrapping="Wrap"/>
                                 <TextBlock Grid.Row="1" Text="版本" Foreground="{DynamicResource TextSecondary}" Margin="0,4"/>
                                 <TextBlock x:Name="TxtVersion" Grid.Row="1" Grid.Column="1"
@@ -238,16 +241,16 @@
                                 <TextBlock Grid.Row="3" Text="数据目录" Foreground="{DynamicResource TextSecondary}" Margin="0,4"/>
                                 <TextBlock x:Name="TxtDataDir" Grid.Row="3" Grid.Column="1" Foreground="{DynamicResource TextPrimary}"
                                            Margin="0,4" TextWrapping="Wrap" FontSize="12"/>
-                                <TextBlock Grid.Row="4" Grid.Column="1" Text="应用的所有数据（设置、账号登录态、抽卡记录、签到状态等）都保存在此文件夹，建议定期备份；更改数据目录后需重启 mi-Nest 生效，原有数据不会自动迁移。"
+                                <TextBlock Grid.Row="4" Grid.Column="1" Text="应用的所有数据（设置、账号登录态、抽卡记录、签到状态等）都保存在此文件夹，建议定期备份；更改数据目录后需重启 MikoNest 生效，原有数据不会自动迁移。"
                                            Foreground="{DynamicResource TextSecondary}" FontSize="11.5"
                                            Margin="0,4,0,0" TextWrapping="Wrap"/>
                                 <Button Grid.Row="5" Grid.Column="1" Content="打开数据目录" HorizontalAlignment="Left"
                                         Padding="14,6" Margin="0,10,12,0" Click="BtnOpenDataDir_Click"/>
                                 <Button Grid.Row="5" Grid.Column="1" Content="更改数据目录" HorizontalAlignment="Left"
                                         Padding="14,6" Margin="128,10,0,0" Click="BtnChangeDataDir_Click"/>
-                                <Button Grid.Row="6" Grid.Column="1" Content="📌 实时便笺（米哈游游戏实时状态、体力查询）"
+                                <Button Grid.Row="6" Grid.Column="1" Content="📜 更新日志（v0.1.5 → v0.1.28）"
                                         HorizontalAlignment="Left"
-                                        Padding="14,6" Margin="0,10,0,0" Click="BtnDailyNote_Click"/>
+                                        Padding="14,6" Margin="0,10,0,0" Click="BtnChangelog_Click"/>
                             </Grid>
                         </StackPanel>
                     </Border>
@@ -257,7 +260,7 @@
                         <Border Style="{StaticResource SurfaceCard}" Padding="18">
                             <StackPanel>
                                 <TextBlock Text="关于" Style="{StaticResource SectionTitle}"/>
-                                <TextBlock Text="mi-Nest 是一款开源的米哈游 PC 多功能桌面客户端，把米哈游游戏的启动、社区浏览、抽卡记录、每日任务与签到、官方及第三方站点聚合到一个软件内，所有页面均在应用内打开，无需跳转浏览器。"
+                                <TextBlock Text="MikoNest 是一款开源的米哈游 PC 多功能桌面客户端，把米哈游游戏的启动、社区浏览、抽卡记录、每日任务与签到、官方及第三方站点聚合到一个软件内，所有页面均在应用内打开，无需跳转浏览器。"
                                            Foreground="{DynamicResource TextSecondary}" FontSize="12.5"
                                            TextWrapping="Wrap" LineHeight="20"/>
 
@@ -277,11 +280,11 @@
                     </StackPanel>
                 </Grid>
 
-                <!-- mi-Nest 隐藏设置入口（放到设置页最底部） -->
+                <!-- MikoNest 隐藏设置入口（放到设置页最底部） -->
                 <Border Style="{StaticResource SurfaceCard}" Padding="18" Margin="0,18,0,0">
                     <StackPanel>
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                            <TextBlock Text="mi-Nest" FontSize="12.5" FontWeight="SemiBold"
+                            <TextBlock Text="MikoNest" FontSize="12.5" FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextSecondary}"
                                        VerticalAlignment="Center" Margin="0,0,10,0"/>
                             <Button x:Name="BtnHidden" Content="隐藏设置" Padding="14,6"
@@ -292,14 +295,18 @@
                                 Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource CardBorder}"
                                 BorderThickness="1" CornerRadius="10" Padding="16">
                             <StackPanel>
-                                <TextBlock Text="请输入访问密码" FontSize="13"
+                                <TextBlock Text="请输入密码" FontSize="13"
                                            Foreground="{DynamicResource TextSecondary}"/>
                                 <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                                     <PasswordBox x:Name="TxtPwd" Width="220" VerticalContentAlignment="Center"
-                                                 AutomationProperties.Name="访问密码"
+                                                 AutomationProperties.Name="密码"
                                                  KeyDown="TxtPwd_KeyDown"/>
                                     <Button Content="进入" Padding="16,5" Margin="10,0,0,0"
                                             Click="BtnPwdOk_Click"/>
+                                    <TextBlock Text="在本github项目主页点“★”/进入开发者首页点“关注”，而后输入开发者ID即可。"
+                                               FontSize="11.5" Foreground="{DynamicResource TextSecondary}"
+                                               TextWrapping="Wrap" MaxWidth="440" VerticalAlignment="Center"
+                                               Margin="12,0,0,0"/>
                                 </StackPanel>
                                 <TextBlock x:Name="TxtPwdErr" Foreground="#E0506E" FontSize="12"
                                            Margin="0,8,0,0" Visibility="Collapsed"/>
@@ -331,11 +338,6 @@
                                               Margin="0,6,0,0" FontSize="13"
                                               Foreground="{DynamicResource TextPrimary}"
                                               Tag="任务/签到"
-                                              Checked="NavVisibility_Changed" Unchecked="NavVisibility_Changed"/>
-                                    <CheckBox x:Name="ChkNavNote" Content="显示「实时便笺」"
-                                              Margin="0,6,0,0" FontSize="13"
-                                              Foreground="{DynamicResource TextPrimary}"
-                                              Tag="实时便笺"
                                               Checked="NavVisibility_Changed" Unchecked="NavVisibility_Changed"/>
                                     <CheckBox x:Name="ChkNavLinks" Content="显示「米哈游相关」"
                                               Margin="0,6,0,0" FontSize="13"
@@ -393,3 +395,4 @@
         </ScrollViewer>
     </Grid>
 </UserControl>
+

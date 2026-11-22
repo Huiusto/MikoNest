@@ -27,7 +27,52 @@ public partial class SettingsPage : UserControl
         _main = main;
         Loaded += OnLoaded;
         Loaded += HookOutsideClick;
-        Unloaded += (_, _) => { try { SetLangDrawer(false); } catch { } };
+        Loaded += HookUpdateProgress;
+        Unloaded += (_, _) =>
+        {
+            try { SetLangDrawer(false); } catch { }
+            UnhookUpdateProgress();
+        };
+    }
+
+    private bool _updateProgressHooked;
+
+    /// <summary>订阅更新下载进度，让「应用维护」里的检查更新按钮直接显示 0%–100%。</summary>
+    private void HookUpdateProgress(object sender, RoutedEventArgs e)
+    {
+        if (_updateProgressHooked) return;
+        UpdateProgressService.PercentChanged += OnUpdatePercentChanged;
+        _updateProgressHooked = true;
+    }
+
+    private void UnhookUpdateProgress()
+    {
+        if (!_updateProgressHooked) return;
+        UpdateProgressService.PercentChanged -= OnUpdatePercentChanged;
+        _updateProgressHooked = false;
+    }
+
+    private void OnUpdatePercentChanged(int percent)
+    {
+        if (!IsLoaded) return;
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(new Action(() => OnUpdatePercentChanged(percent)));
+            return;
+        }
+
+        if (percent < 0)
+        {
+            BtnUpdate.Content = "检查更新";
+            BtnUpdate.ToolTip = null;
+            return;
+        }
+
+        var pct = Math.Clamp(percent, 0, 100);
+        BtnUpdate.Content = $"{pct}%";
+        BtnUpdate.ToolTip = pct >= 100
+            ? "安装包已下载，正在启动安装程序"
+            : $"正在下载更新安装包：{pct}%";
     }
 
     private bool _outsideClickHooked;
@@ -67,7 +112,7 @@ public partial class SettingsPage : UserControl
     {
         BuildThemePicker();
         BuildLanguagePicker();
-        TxtVersion.Text = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.1.13";
+        TxtVersion.Text = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.1.28";
         TxtDataDir.Text = AppPaths.DataDir;
         // 初始化同步设置值时不触发写入事件（避免误存）
         _navInit = true;
@@ -76,7 +121,6 @@ public partial class SettingsPage : UserControl
         ChkNavCommunity.IsChecked = !disabled.Contains("社区");
         ChkNavGacha.IsChecked = !disabled.Contains("抽卡记录");
         ChkNavTask.IsChecked = !disabled.Contains("任务/签到");
-        ChkNavNote.IsChecked = !disabled.Contains("实时便笺");
         ChkNavLinks.IsChecked = !disabled.Contains("米哈游相关");
         ChkAutoStart.IsChecked = SettingsService.Settings.AutoStartOnBoot;
         ChkBringFront.IsChecked = SettingsService.Settings.BringFrontOnGameExit;
@@ -150,8 +194,10 @@ public partial class SettingsPage : UserControl
     }
 
     /// <summary>设置页内打开实时便笺（原左侧导航项已移入设置）</summary>
-    private void BtnDailyNote_Click(object sender, RoutedEventArgs e)
-        => _main?.ShowPage("实时便笺");
+    private void BtnChangelog_Click(object sender, RoutedEventArgs e)
+    {
+        new MiNest.Windows.ChangelogWindow { Owner = Window.GetWindow(this) }.ShowDialog();
+    }
 
     /// <summary>隐藏设置：左侧内置项目栏显示开关（默认全部显示）</summary>
     private void NavVisibility_Changed(object sender, RoutedEventArgs e)
@@ -262,7 +308,7 @@ public partial class SettingsPage : UserControl
         RefreshNavManager();
     }
 
-    // ---------- mi-Nest 隐藏设置（密码 310621322） ----------
+    // ---------- MikoNest 隐藏设置（密码 310621322） ----------
 
     private const string HiddenPwd = "310621322";
 
@@ -422,8 +468,8 @@ public partial class SettingsPage : UserControl
                 LocalizationService.Init(code);
                 TxtLangCurrent.Text = $"当前：{display}";
                 TxtLangHint.Text = code.Length == 0
-                    ? "已设为「跟随系统」，重新打开 mi-Nest 后按系统语言显示。"
-                    : $"已切换为 {display}，重新打开 mi-Nest 后全部界面生效。";
+                    ? "已设为「跟随系统」，重新打开 MikoNest 后按系统语言显示。"
+                    : $"已切换为 {display}，重新打开 MikoNest 后全部界面生效。";
                 TxtLangHint.Visibility = Visibility.Visible;
                 RefreshLangDots();
                 SetLangDrawer(false);
@@ -491,8 +537,8 @@ public partial class SettingsPage : UserControl
         _checkingUpdate = true;
 
         var current = Assembly.GetExecutingAssembly().GetName().Version ?? new Version(0, 1, 0, 0);
-        BtnUpdate.IsEnabled = false;
         BtnUpdate.Content = "检查中…";
+        BtnUpdate.ToolTip = null;
         SetHint("");
 
         try
@@ -510,7 +556,7 @@ public partial class SettingsPage : UserControl
             var latest = UpdateService.ParseTag(info.Version);
             if (latest != null && latest <= current)
             {
-                SetHint("已是最新版本");
+                SetHint("");
                 MessageBox.Show($"当前已是最新版本 v{current.ToString(3)}。\n\n" +
                                 $"最新发布：v{info.Version}（{info.ReleasePage}）", "检查更新",
                     MessageBoxButton.OK, MessageBoxImage.Information);
@@ -527,32 +573,12 @@ public partial class SettingsPage : UserControl
                 return;
             }
 
-            var sizeText = info.AssetSize > 0 ? $"（{info.AssetSize / 1024d / 1024d:F1} MB）" : "";
-            var ok = MessageBox.Show($"发现新版本 v{info.Version}（当前 v{current.ToString(3)}）。\n\n" +
-                                     $"安装包：{info.AssetName} {sizeText}\n\n" +
-                                     "点击「确定」开始下载，下载完成后会自动安装并重启软件。\n" +
-                                     "（安装时会弹出 Windows 授权窗口，请点「是」）",
-                "发现新版本", MessageBoxButton.OKCancel, MessageBoxImage.Question);
-            if (ok != MessageBoxResult.OK) return;
-
-            BtnUpdate.Content = "下载 0%";
-            var path = await UpdateService.DownloadAsync(info, (done, total) =>
+            // 与启动前自动检查使用同一个粉色更新弹窗（图2），取消/关闭即视为本次不更新。
+            var win = new MiNest.Windows.UpdateWindow(current, info)
             {
-                if (total <= 0) return;
-                var pct = (int)Math.Round(done * 100d / total);
-                BtnUpdate.Content = $"下载 {pct}%";
-            });
-
-            BtnUpdate.Content = "安装中…";
-            SetHint("安装包已下载，正在启动安装程序…");
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = path,
-                Arguments = BuildInstallerArgs(),
-                UseShellExecute = true,
-            });
-            await System.Threading.Tasks.Task.Delay(1200);
-            Application.Current.Shutdown();
+                Owner = Window.GetWindow(this),
+            };
+            win.ShowDialog();
         }
         catch (Exception ex)
         {
@@ -563,29 +589,8 @@ public partial class SettingsPage : UserControl
         finally
         {
             _checkingUpdate = false;
-            BtnUpdate.IsEnabled = true;
             BtnUpdate.Content = "检查更新";
-        }
-    }
-
-    /// <summary>
-    /// 静默安装参数：便携版就地覆盖当前目录，已安装版沿用原来的安装目录。
-    /// /D 必须是最后一个参数，且不能带引号。
-    /// </summary>
-    private string BuildInstallerArgs()
-    {
-        try
-        {
-            var dir = AppContext.BaseDirectory.TrimEnd('\\', '/');
-            var pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-            var pf86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
-            var inProgramFiles = dir.StartsWith(pf, StringComparison.OrdinalIgnoreCase)
-                                 || dir.StartsWith(pf86, StringComparison.OrdinalIgnoreCase);
-            return inProgramFiles ? "/S" : "/S /D=" + dir;
-        }
-        catch
-        {
-            return "/S";
+            BtnUpdate.ToolTip = null;
         }
     }
 
@@ -614,9 +619,9 @@ public partial class SettingsPage : UserControl
             try
             {
                 using var key = Registry.LocalMachine.OpenSubKey(
-                    @"Software\Microsoft\Windows\CurrentVersion\Uninstall\mi-Nest")
+                    @"Software\Microsoft\Windows\CurrentVersion\Uninstall\MikoNest")
                     ?? Registry.LocalMachine.OpenSubKey(
-                    @"Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\mi-Nest");
+                    @"Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\MikoNest");
                 if (key?.GetValue("UninstallString") is string str && str.Length > 0)
                 {
                     var p = str.Trim().Trim('"');
@@ -700,7 +705,7 @@ public partial class SettingsPage : UserControl
         SettingsService.Save();
         TxtDataDir.Text = path;
         MessageBox.Show(
-            "数据目录已更改。重启 mi-Nest 后生效；旧的设置、账号、抽卡记录不会自动迁移，可手动复制到新目录。",
+            "数据目录已更改。重启 MikoNest 后生效；旧的设置、账号、抽卡记录不会自动迁移，可手动复制到新目录。",
             "更改数据目录", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
@@ -723,7 +728,7 @@ public partial class SettingsPage : UserControl
 
     // ---------- 通用设置：启动设置 / 关闭设置 ----------
     private const string RunKeyName = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    private const string RunValueName = "mi-Nest";
+    private const string RunValueName = "MikoNest";
 
     private void ChkAutoStart_Changed(object sender, RoutedEventArgs e)
     {
@@ -759,6 +764,7 @@ public partial class SettingsPage : UserControl
         _main?.ApplyCloseBehavior();
     }
 }
+
 
 
 

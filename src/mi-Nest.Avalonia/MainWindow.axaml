@@ -1,7 +1,8 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="MiNest.Avalonia.MainWindow"
-        Title="mi-Nest"
+        Title="MikoNest"
+        Icon="/Assets/logo.png"
         Width="1360" Height="860"
         MinWidth="1080" MinHeight="700"
         Background="{DynamicResource PageBgFlat}"
@@ -10,43 +11,46 @@
 
   <Grid ColumnDefinitions="auto,*">
     <!-- ================= 侧栏 ================= -->
-    <Border x:Name="Sidebar" Grid.Column="0" Width="212"
+    <Border x:Name="Sidebar" Grid.Column="0" Width="220"
             Background="{DynamicResource SidebarBg}"
             BorderBrush="{DynamicResource Divider}" BorderThickness="0,0,1,0">
-      <Grid RowDefinitions="Auto,*,Auto" Margin="10,14,10,14">
+      <Grid RowDefinitions="Auto,*,Auto" Margin="12,16,12,14">
         <!-- 品牌 + 折叠 -->
         <Button x:Name="BtnBrand" Grid.Row="0" Background="Transparent" BorderThickness="0"
-                Padding="6" Cursor="Hand" HorizontalAlignment="Stretch"
+                Padding="4" Cursor="Hand" HorizontalAlignment="Stretch"
                 HorizontalContentAlignment="Left" ToolTip.Tip="点击折叠 / 展开侧栏">
-          <StackPanel Orientation="Horizontal" Spacing="10">
-            <Border Width="34" Height="34" CornerRadius="10" Background="{DynamicResource AccentSoft}">
-              <TextBlock Text="M" FontSize="17" FontWeight="Bold" Foreground="{DynamicResource AccentText}"
-                         HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          <StackPanel Orientation="Horizontal" Spacing="11">
+            <Border Width="38" Height="38" CornerRadius="12" Background="Transparent">
+              <Image Source="/Assets/logo.png" Width="38" Height="38" Stretch="Uniform"/>
             </Border>
-            <StackPanel x:Name="BrandText" VerticalAlignment="Center">
-              <TextBlock Text="mi-Nest" FontSize="15" FontWeight="SemiBold"/>
-              <TextBlock Text="MIHOYO LAUNCHER" FontSize="8.5" Classes="muted" LetterSpacing="0.9"/>
+            <StackPanel x:Name="BrandText" VerticalAlignment="Center" Spacing="1">
+              <Image Source="/Assets/wordmark.png" Width="98" HorizontalAlignment="Left" Stretch="Uniform"/>
+              <TextBlock Text="MIHOYO LAUNCHER" FontSize="8.5" Classes="muted" LetterSpacing="1.1"/>
             </StackPanel>
           </StackPanel>
         </Button>
 
         <!-- 导航 -->
-        <ScrollViewer Grid.Row="1" Margin="0,18,0,0" VerticalScrollBarVisibility="Auto">
-          <StackPanel x:Name="NavPanel" Spacing="4"/>
+        <ScrollViewer Grid.Row="1" Margin="0,20,0,0" VerticalScrollBarVisibility="Auto">
+          <StackPanel x:Name="NavPanel" Spacing="5"/>
         </ScrollViewer>
 
         <!-- 账号 / 设置 -->
-        <StackPanel Grid.Row="2" Spacing="4">
-          <Border Height="1" Background="{DynamicResource Divider}" Margin="6,0,6,8"/>
+        <StackPanel Grid.Row="2" Spacing="5">
+          <Border Height="1" Background="{DynamicResource Divider}" Margin="6,0,6,10"/>
           <Button x:Name="BtnAccount" Classes="nav" Click="NavAccount_Click">
             <StackPanel Orientation="Horizontal" Spacing="10">
-              <TextBlock Text="☺" FontSize="14"/>
+              <Border Width="28" Height="28" CornerRadius="9" x:Name="NavGlyphAccount" Background="{DynamicResource InputBg}" Classes="navGlyph">
+                <TextBlock Text="☺" FontSize="13" Classes="navGlyphText"/>
+              </Border>
               <TextBlock x:Name="LblAccount" Text="账号" FontSize="12.5" VerticalAlignment="Center"/>
             </StackPanel>
           </Button>
           <Button x:Name="BtnSettings" Classes="nav" Click="NavSettings_Click">
             <StackPanel Orientation="Horizontal" Spacing="10">
-              <TextBlock Text="⚙" FontSize="14"/>
+              <Border Width="28" Height="28" CornerRadius="9" x:Name="NavGlyphSettings" Background="{DynamicResource InputBg}" Classes="navGlyph">
+                <TextBlock Text="⚙" FontSize="13" Classes="navGlyphText"/>
+              </Border>
               <TextBlock x:Name="LblSettings" Text="设置" FontSize="12.5" VerticalAlignment="Center"/>
             </StackPanel>
           </Button>
@@ -57,14 +61,14 @@
     <!-- ================= 内容区 ================= -->
     <Grid Grid.Column="1" RowDefinitions="Auto,*">
       <!-- 顶部标题栏 -->
-      <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="26,20,26,6">
-        <StackPanel Spacing="4">
+      <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="30,22,28,8">
+        <StackPanel Spacing="5">
           <TextBlock x:Name="PageTitle" Text="启动" Classes="h1"/>
           <TextBlock x:Name="PageSubtitle" Classes="muted" FontSize="12"
                      Text="同步官方版本壁纸 · 预下载 · 一键启动"/>
         </StackPanel>
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
-          <Border Classes="card" Padding="12,7" CornerRadius="12">
+          <Border Classes="card" Padding="13,7" CornerRadius="14">
             <StackPanel Orientation="Horizontal" Spacing="8">
               <Ellipse Width="7" Height="7" Fill="{DynamicResource Accent}" VerticalAlignment="Center"/>
               <TextBlock x:Name="TxtAccount" FontSize="11.5" Classes="muted" Text="未登录"/>
@@ -74,13 +78,31 @@
       </Grid>
 
       <!-- 页面容器 -->
-      <Border Grid.Row="1" Margin="18,6,18,18" CornerRadius="18" ClipToBounds="True">
+      <Border Grid.Row="1" Margin="20,6,20,20" CornerRadius="22" ClipToBounds="True"
+              BorderBrush="{DynamicResource CardBorder}" BorderThickness="1"
+              BoxShadow="0 16 40 0 #141B2A4D">
         <Grid>
           <Border Background="{DynamicResource PageBg}"/>
-          <!-- 右上角柔光 -->
-          <Ellipse Width="520" Height="520" HorizontalAlignment="Right" VerticalAlignment="Top"
-                   Margin="0,-260,-180,0" Fill="{DynamicResource AccentSoft}" Opacity="0.55"
-                   IsHitTestVisible="False"/>
+          <!-- 极光光斑（径向渐变，边缘自然淡出） -->
+          <Ellipse Width="760" Height="760" HorizontalAlignment="Right" VerticalAlignment="Top"
+                   Margin="0,-380,-240,0" IsHitTestVisible="False">
+            <Ellipse.Fill>
+              <RadialGradientBrush Center="50%,50%" GradientOrigin="50%,50%">
+                <GradientStop Color="#334C6FFF" Offset="0"/>
+                <GradientStop Color="#1A8B5CF6" Offset="0.55"/>
+                <GradientStop Color="#008B5CF6" Offset="1"/>
+              </RadialGradientBrush>
+            </Ellipse.Fill>
+          </Ellipse>
+          <Ellipse Width="560" Height="560" HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                   Margin="-280,0,0,-300" IsHitTestVisible="False">
+            <Ellipse.Fill>
+              <RadialGradientBrush Center="50%,50%" GradientOrigin="50%,50%">
+                <GradientStop Color="#268B5CF6" Offset="0"/>
+                <GradientStop Color="#008B5CF6" Offset="1"/>
+              </RadialGradientBrush>
+            </Ellipse.Fill>
+          </Ellipse>
           <ContentControl x:Name="PageHost"/>
         </Grid>
       </Border>

@@ -7,6 +7,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using MiNest.Models;
 using MiNest.Services;
+using MiNest.Avalonia.Theme;
 
 namespace MiNest.Avalonia.Views;
 
@@ -144,7 +145,7 @@ public class GachaView : UserControl
         {
             var active = (string?)child.Tag == key;
             child.Background = active
-                ? (IBrush?)Application.Current!.Resources["AccentSoft"]
+                ? UiTheme.Brush("AccentSoft", "#224C6FFF")
                 : new SolidColorBrush(Color.Parse("#0A000000"));
             child.FontWeight = active ? FontWeight.SemiBold : FontWeight.Normal;
         }
@@ -154,9 +155,19 @@ public class GachaView : UserControl
     private void Reload()
     {
         var uids = GachaStore.GetUids(_gameKey);
-        _uidBox.ItemsSource = uids;
-        if (uids.Count > 0) _uidBox.SelectedIndex = 0;
-        _uid = uids.Count > 0 ? uids[0] : null;
+        var keep = _uid;
+        if (uids.Count == 0)
+        {
+            _uidBox.ItemsSource = new[] { "无账号" };
+            _uidBox.SelectedIndex = 0;
+        }
+        else
+        {
+            _uidBox.ItemsSource = uids;
+            var idx = keep != null && uids.Contains(keep) ? uids.IndexOf(keep) : 0;
+            _uidBox.SelectedIndex = Math.Clamp(idx, 0, uids.Count - 1);
+        }
+        _uid = _uidBox.SelectedIndex >= 0 && uids.Count > 0 ? uids[Math.Clamp(_uidBox.SelectedIndex, 0, uids.Count - 1)] : null;
         Render();
     }
 
@@ -167,7 +178,7 @@ public class GachaView : UserControl
         var last = all.Count > 0 ? all.Max(x => x.Time) : null;
         _subtitle.Text = $"本地库 {all.Count} 条" + (last != null ? $" · 最近更新 {last}" : "");
         _status.Text = all.Count == 0
-            ? "本地库还是空的：抽卡数据与 mi-Nest 桌面版共用同一数据目录，导入 UIGF / SRGF 后即可查看。"
+            ? "本地库还是空的：抽卡数据与 MikoNest 桌面版共用同一数据目录，导入 UIGF / SRGF 后即可查看。"
             : $"共 {all.Count} 条记录 · 统计口径与 Starward 一致（5★ 平均按每条 5★ 的垫抽数计算）";
 
         var defs = Pools.TryGetValue(_gameKey, out var p) ? p : new[] { new Pool("", "卡池", Array.Empty<string>()) };
@@ -183,21 +194,44 @@ public class GachaView : UserControl
     {
         var card = new Border
         {
-            Width = 268,
-            CornerRadius = new CornerRadius(16),
-            Padding = new Thickness(14, 14, 14, 16),
-            Background = (IBrush)Application.Current!.Resources["CardBg"]!,
-            BorderBrush = (IBrush)Application.Current!.Resources["CardBorder"]!,
+            Width = 256,
+            CornerRadius = new CornerRadius(20),
+            Padding = new Thickness(14, 15, 14, 16),
+            Background = UiTheme.Brush("CardBg", "#FFFFFF"),
+            BorderBrush = UiTheme.Brush("CardBorder", "#E4E9F5"),
             BorderThickness = new Thickness(1),
+            BoxShadow = BoxShadows.Parse("0 12 30 0 #121B2A4D"),
         };
 
-        var stack = new StackPanel { Spacing = 6 };
+        var stack = new StackPanel { Spacing = 10 };
 
-        var head = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
-        head.Children.Add(new TextBlock { Text = pool.Title, FontSize = 14, FontWeight = FontWeight.SemiBold });
-        var total = new TextBlock { Text = items.Count.ToString(), FontSize = 14, FontWeight = FontWeight.SemiBold };
-        Grid.SetColumn(total, 1);
-        head.Children.Add(total);
+        // 标题行：色点 + 卡池名 + 总抽数
+        var head = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto") };
+        head.Children.Add(new Border
+        {
+            Width = 8, Height = 8, CornerRadius = new CornerRadius(4),
+            Background = new SolidColorBrush(Color.Parse(PoolAccent(pool.Code))),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 8, 0),
+        });
+        head.Children.Add(new TextBlock
+        {
+            Text = pool.Title, FontSize = 14.5, FontWeight = FontWeight.Bold,
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        var totalPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 3 };
+        totalPanel.Children.Add(new TextBlock
+        {
+            Text = items.Count.ToString(), FontSize = 20, FontWeight = FontWeight.Bold,
+            Foreground = UiTheme.Brush("AccentText", "#3A55E0"),
+        });
+        totalPanel.Children.Add(new TextBlock
+        {
+            Text = "抽", FontSize = 10, VerticalAlignment = VerticalAlignment.Bottom,
+            Margin = new Thickness(0, 0, 0, 4), Classes = { "muted" },
+        });
+        Grid.SetColumn(totalPanel, 2);
+        head.Children.Add(totalPanel);
         stack.Children.Add(head);
 
         var range = items.Count > 0 ? $"{items.Min(x => x.Time)} — {items.Max(x => x.Time)}" : "—";
@@ -213,29 +247,49 @@ public class GachaView : UserControl
             ? five.Select(x => PityOf(items, x)).Average()
             : 0;
 
-        stack.Children.Add(StatRow("5★ 平均", five.Count > 0 ? avg.ToString("0.00") : "—", "#C9971F"));
-        stack.Children.Add(StatRow("5★ 统计", $"{five.Count} [{Percent(five.Count, items.Count)}]", "#C9971F"));
-        stack.Children.Add(StatRow("4★ 统计", $"{four.Count} [{Percent(four.Count, items.Count)}]", "#9A6BD6"));
-        stack.Children.Add(StatRow("3★ 统计", $"{three.Count} [{Percent(three.Count, items.Count)}]", "#6A7488"));
-
-        stack.Children.Add(new Border { Height = 1, Margin = new Thickness(0, 6), Background = (IBrush)Application.Current!.Resources["Divider"]! });
+        // 统计块：底色卡片，四行数据
+        var stats = new Border
+        {
+            CornerRadius = new CornerRadius(14),
+            Background = UiTheme.Brush("InputBg", "#F3F6FC"),
+            Padding = new Thickness(11, 9, 11, 9),
+        };
+        var statStack = new StackPanel { Spacing = 5 };
+        statStack.Children.Add(StatRow("5★ 平均", five.Count > 0 ? avg.ToString("0.00") : "—", "#C9971F"));
+        statStack.Children.Add(StatRow("5★ 统计", $"{five.Count} [{Percent(five.Count, items.Count)}]", "#C9971F"));
+        statStack.Children.Add(StatRow("4★ 统计", $"{four.Count} [{Percent(four.Count, items.Count)}]", "#9A6BD6"));
+        statStack.Children.Add(StatRow("3★ 统计", $"{three.Count} [{Percent(three.Count, items.Count)}]", "#6A7488"));
+        stats.Child = statStack;
+        stack.Children.Add(stats);
 
         var pending = PendingPity(items);
         var pendingBorder = new Border
         {
-            CornerRadius = new CornerRadius(7),
-            Padding = new Thickness(9, 6),
-            Background = new SolidColorBrush(Color.Parse(pending <= 70 ? "#3F9B6B" : "#C0453F")),
+            CornerRadius = new CornerRadius(12),
+            Padding = new Thickness(12, 8),
+            Background = pending <= 70
+                ? new SolidColorBrush(Color.Parse("#223F9B6B"))
+                : new SolidColorBrush(Color.Parse("#22C0453F")),
+            BorderBrush = new SolidColorBrush(Color.Parse(pending <= 70 ? "#3F9B6B" : "#C0453F")),
+            BorderThickness = new Thickness(0, 0, 0, 0),
         };
         var pendingGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
-        pendingGrid.Children.Add(new TextBlock { Text = "已垫", FontSize = 11.5, Foreground = Brushes.White, FontWeight = FontWeight.SemiBold });
-        var pv = new TextBlock { Text = pending.ToString(), FontSize = 11.5, Foreground = Brushes.White, FontWeight = FontWeight.SemiBold };
+        pendingGrid.Children.Add(new TextBlock
+        {
+            Text = "已垫", FontSize = 11.5, FontWeight = FontWeight.SemiBold,
+            Foreground = new SolidColorBrush(Color.Parse(pending <= 70 ? "#2E8B57" : "#C0453F")),
+        });
+        var pv = new TextBlock
+        {
+            Text = pending + " 抽", FontSize = 11.5, FontWeight = FontWeight.Bold,
+            Foreground = new SolidColorBrush(Color.Parse(pending <= 70 ? "#2E8B57" : "#C0453F")),
+        };
         Grid.SetColumn(pv, 1);
         pendingGrid.Children.Add(pv);
         pendingBorder.Child = pendingGrid;
         stack.Children.Add(pendingBorder);
 
-        var list = new StackPanel { Spacing = 4, Margin = new Thickness(0, 4, 0, 0) };
+        var list = new StackPanel { Spacing = 5, Margin = new Thickness(0, 2, 0, 0) };
         if (five.Count == 0)
             list.Children.Add(new TextBlock { Text = "暂无 5★ 记录", FontSize = 11, Classes = { "muted" } });
         foreach (var item in five)
@@ -245,6 +299,18 @@ public class GachaView : UserControl
         card.Child = stack;
         return card;
     }
+
+    /// <summary>卡池色点颜色</summary>
+    private static string PoolAccent(string code) => code switch
+    {
+        "200" or "1" or "2" or "3" => "#8A94A6",
+        "301" or "11" or "12" => "#C9971F",
+        "302" or "22" => "#9A6BD6",
+        "500" => "#3F9B6B",
+        "21" => "#4C6FFF",
+        "5" => "#E38B2C",
+        _ => "#4C6FFF",
+    };
 
     private static string Percent(int part, int total) => total == 0 ? "0.00%" : $"{(double)part * 100 / total:0.00}%";
 
@@ -258,7 +324,7 @@ public class GachaView : UserControl
         return grid;
     }
 
-    /// <summary>某条 5★ 记录抽到时已经垫了多少抽（同一卡池内按时间正序，从上一次 5★ 之后算起）</summary>
+    /// <summary>某条记录抽到时已经垫了多少抽：5★ 以上一次 5★ 为界，4★ 以上一次 4★/5★ 为界</summary>
     private static int PityOf(List<GachaItem> pool, GachaItem target)
     {
         var ordered = pool
@@ -272,7 +338,11 @@ public class GachaView : UserControl
         for (var i = index; i >= 0; i--)
         {
             count++;
-            if (i < index && ordered[i].RankType == "5") return count - 1;
+            if (i < index)
+            {
+                if (target.RankType == "4" && ordered[i].RankType is "4" or "5") return count - 1;
+                if (target.RankType != "4" && ordered[i].RankType == target.RankType) return count - 1;
+            }
         }
         return count;
     }
@@ -291,10 +361,7 @@ public class GachaView : UserControl
     private Control BuildRow(GachaItem item, List<GachaItem> pool)
     {
         var pity = PityOf(pool, item);
-        var isUp = _gameKey == "genshin"
-                   && item.RankType == "5"
-                   && item.GachaType is "301" or "400" or "302"
-                   && !StandardFiveStar.Contains(item.Name.Trim());
+        var isUp = GachaUpRules.IsUp(_gameKey, item.RankType, item.GachaType ?? "", item.Name);
 
         var row = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto") };
         var badge = new Border
@@ -328,24 +395,29 @@ public class GachaView : UserControl
         Grid.SetColumn(namePanel, 1);
         row.Children.Add(namePanel);
 
+        var isGenshinWeaponFive = _gameKey == "genshin" && item.GachaType == "302" && item.RankType == "5";
+        var max = isGenshinWeaponFive ? 80 : item.RankType == "5" ? 90 : 10;
+        var greenMax = isGenshinWeaponFive ? 65 : item.RankType == "5" ? 70 : 7;
+        var color = pity <= greenMax ? "#3F9B6B" : "#C0453F";
         var value = new TextBlock
         {
             Text = pity.ToString(),
             FontSize = 12, FontWeight = FontWeight.SemiBold,
-            Foreground = new SolidColorBrush(Color.Parse(pity <= 70 ? "#3F9B6B" : "#C0453F")),
+            Foreground = new SolidColorBrush(Color.Parse(color)),
             VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 0, 0),
         };
         Grid.SetColumn(value, 2);
         row.Children.Add(value);
 
-        var bar = new Grid { Height = 3, Margin = new Thickness(2, 3, 6, 7), ColumnDefinitions = new ColumnDefinitions($"{Math.Clamp(pity, 0, 90)}*,{90 - Math.Clamp(pity, 0, 90)}*") };
+        var filled = Math.Clamp(pity, 0, max);
+        var bar = new Grid { Height = 3, Margin = new Thickness(2, 3, 6, 7), ColumnDefinitions = new ColumnDefinitions($"{filled}*,{max - filled}*") };
         var track = new Border { CornerRadius = new CornerRadius(1.5), Background = new SolidColorBrush(Color.Parse("#22808080")) };
         Grid.SetColumnSpan(track, 2);
         bar.Children.Add(track);
         bar.Children.Add(new Border
         {
             CornerRadius = new CornerRadius(1.5),
-            Background = new SolidColorBrush(Color.Parse(pity <= 70 ? "#3F9B6B" : "#C0453F")),
+            Background = new SolidColorBrush(Color.Parse(color)),
         });
 
         var stack = new StackPanel();

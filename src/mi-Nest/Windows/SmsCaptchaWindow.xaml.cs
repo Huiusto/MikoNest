@@ -112,7 +112,7 @@ public partial class SmsCaptchaWindow : Window
     {
         try
         {
-            var uri = new Uri("pack://application:,,,/mi-Nest;component/Assets/geetest.html");
+            var uri = new Uri("pack://application:,,,/MikoNest;component/Assets/geetest.html");
             var info = Application.GetResourceStream(uri);
             if (info != null)
             {
@@ -124,6 +124,6 @@ public partial class SmsCaptchaWindow : Window
         {
             // 资源缺失时使用内嵌兜底
         }
-        return "<html><body style='background:#1b1d26;color:#e6e8ee;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh'>安全验证组件缺失，请重新安装 mi-Nest。</body></html>";
+        return "<html><body style='background:#1b1d26;color:#e6e8ee;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh'>安全验证组件缺失，请重新安装 MikoNest。</body></html>";
     }
 }

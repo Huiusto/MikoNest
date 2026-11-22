@@ -149,7 +149,7 @@
                 </Grid.ColumnDefinitions>
 
                 <!-- 左侧：Q 版插画 -->
-                <Image Grid.Column="0" Source="/mi-Nest;component/Assets/uninstall_art.png"
+                <Image Grid.Column="0" Source="/MikoNest;component/Assets/uninstall_art.png"
                        Stretch="Uniform" HorizontalAlignment="Left" VerticalAlignment="Bottom"
                        IsHitTestVisible="False"/>
 

@@ -185,6 +185,8 @@ public static class AccountService
     // 2025+ 米游社通行证新接口：account/ma-cn-passport（旧 /account/auth/api/web/createQrCode 已下线，返回 404）
 
     private const string X4Salt = "xV8v4Qu54lUKrEYFZkJhB8cuOh9Asafs";
+    // 通行证 app_login 场景盐值（SToken v2 升级 / 换取 cookie_token）
+    private const string AppLoginSalt = "6s25p5ox5y14umn1p61aqyyvbvvl3lrt";
     private const string BbsVersion = "2.115.0";
     private const string QrUa = "Mozilla/5.0 miHoYoBBS/2.115.0 Capture/2.2.0";
     private const string MobileUa = "Mozilla/5.0 (Linux; Android 12) Mobile miHoYoBBS/2.115.0";
@@ -298,69 +300,231 @@ public static class AccountService
         if (string.IsNullOrEmpty(stoken) || string.IsNullOrEmpty(aid) || string.IsNullOrEmpty(mid))
             return (false, "登录凭证解析失败", null);
 
-        // 用 stoken 换取 cookie_token / ltoken（失败不阻断，核心 stoken+mid 已可用）
+        // 新版通行证要求 SToken v2：先把扫码得到的 v1 stoken 升级为 v2，再用 v2 换 cookie_token。
+        // 失败时保留 v1 兼容链路（uid 查询），避免旧链路被单点阻断。
+        var stokenV2 = "";
+        try { stokenV2 = await UpgradeStokenV2Async(mid, aid, stoken); } catch { }
+
         var cookieToken = "";
         var ltoken = "";
-        try { cookieToken = await GetCookieTokenAsync(mid, stoken); } catch { }
-        try { ltoken = await GetLTokenAsync(mid, stoken); } catch { }
+        string? tokenError = null;
+        try
+        {
+            var r = await GetCookieTokenAsync(mid, aid, stoken, stokenV2);
+            cookieToken = r.token;
+            tokenError = r.error;
+        }
+        catch (Exception ex) { tokenError = ex.Message; }
+        try { ltoken = await GetLTokenAsync(mid, aid, stoken, stokenV2); } catch { }
 
+        // cookie_token 缺失不再阻断登录：stoken 有效的账号仍可用于查询/签到，缺失项由后续接口按需补齐。
         var sb = new StringBuilder();
-        // v1 字段（TeyvatGuide 口径）
         sb.Append($"account_id={aid}; ").Append($"stuid={aid}; ").Append($"ltuid={aid}; ")
           .Append($"mid={mid}; ").Append($"stoken={stoken}; ");
         if (!string.IsNullOrEmpty(ltoken))
             sb.Append($"ltoken={ltoken}; ");
         if (!string.IsNullOrEmpty(cookieToken))
             sb.Append($"cookie_token={cookieToken}; ");
-        // v2 字段（新版 takumi/bbs 接口的登录态，与 v1 并存无冲突，兼容性更好）
         sb.Append($"ltuid_v2={aid}; ").Append($"account_id_v2={aid}; ").Append($"account_mid_v2={mid}; ");
+        if (!string.IsNullOrEmpty(stokenV2))
+            sb.Append($"stoken_v2={stokenV2}; ");
         if (!string.IsNullOrEmpty(ltoken))
             sb.Append($"ltoken_v2={ltoken}; ");
         if (!string.IsNullOrEmpty(cookieToken))
             sb.Append($"cookie_token_v2={cookieToken}; ");
         sb.Append($"ltmid_v2={mid}; ");
-        return (true, "登录成功", sb.ToString().TrimEnd(' ', ';'));
+        var built = sb.ToString().TrimEnd(' ', ';');
+        var message = string.IsNullOrEmpty(cookieToken)
+            ? $"登录成功（stoken 已就绪，cookie_token 暂未获取：{tokenError ?? "接口未返回"}）"
+            : "登录成功";
+        return (true, message, built);
     }
 
-    /// <summary>stoken 换取 cookie_token（通行证接口，需 X4 DS + mid/stoken Cookie）</summary>
-    private static async Task<string> GetCookieTokenAsync(string mid, string stoken)
+    /// <summary>SToken v1 → v2（通行证 getTokenBySToken）。新版换 cookie_token / 签到只认 v2。</summary>
+    private static async Task<string> UpgradeStokenV2Async(string mid, string aid, string stokenV1)
     {
-        var url = $"https://passport-api.mihoyo.com/account/auth/api/getCookieAccountInfoBySToken?stoken={stoken}";
-        var headers = BuildStokenHeaders(mid, stoken, "stoken=" + stoken);
-        var api = await MiHoYoHttp.SendWithHeadersAsync("GET", url, null, headers);
-        if (api.Retcode == 0 && api.Data != null)
-            return api.Data.Value.GetProp("cookie_token");
+        const string url = "https://passport-api.mihoyo.com/account/ma-cn-session/app/getTokenBySToken";
+        var body = "{}";
+        var headers = BuildAppLoginHeaders(aid, mid, $"stoken={stokenV1}", body);
+        var api = await MiHoYoHttp.SendWithHeadersAsync("POST", url, body, headers);
+        if (api.Retcode != 0 || api.Data == null) return "";
+        var data = api.Data.Value;
+        if (data.TryGetProperty("token", out var token))
+        {
+            var v = token.GetProp("token");
+            if (!string.IsNullOrEmpty(v)) return v;
+        }
+        return data.GetProp("token");
+    }
+
+    /// <summary>stoken 换取 cookie_token（通行证接口，需 uid 参数 + X4 DS + stuid/mid/stoken Cookie）</summary>
+    private static async Task<(string token, string error)> GetCookieTokenAsync(string mid, string aid, string stokenV1, string stokenV2)
+    {
+        var lastError = "";
+        // 1) SToken v2：app_login 签名 + app_id + 纯 Cookie（新版通行证唯一认可的组合）
+        if (!string.IsNullOrEmpty(stokenV2))
+        {
+            try
+            {
+                const string url = "https://passport-api.mihoyo.com/account/auth/api/getCookieAccountInfoBySToken";
+                var headers = BuildAppLoginHeaders(aid, mid, $"stoken={stokenV2}", "");
+                var api = await MiHoYoHttp.SendWithHeadersAsync("GET", url, null, headers);
+                if (api.Retcode == 0 && api.Data != null)
+                {
+                    var token = api.Data.Value.GetProp("cookie_token");
+                    if (!string.IsNullOrEmpty(token)) return (token, "");
+                    lastError = "接口返回成功但没有 cookie_token";
+                }
+                else lastError = $"{api.Message}（{api.Retcode}）";
+            }
+            catch (Exception ex) { lastError = ex.Message; }
+        }
+
+        // 2) SToken v1 兼容链路：UIGF 文档口径，仅 uid/stoken 查询 + 登录 Cookie
+        var query = $"uid={Uri.EscapeDataString(aid)}&stoken={Uri.EscapeDataString(stokenV1)}";
+        var urls = new[]
+        {
+            $"https://api-takumi.mihoyo.com/auth/api/getCookieAccountInfoBySToken?{query}",
+            $"https://passport-api.mihoyo.com/account/auth/api/getCookieAccountInfoBySToken?{query}",
+        };
+        foreach (var url in urls)
+        {
+            try
+            {
+                var headers = BuildPlainStokenHeaders(mid, aid, stokenV1);
+                var api = await MiHoYoHttp.SendWithHeadersAsync("GET", url, null, headers);
+                if (api.Retcode == 0 && api.Data != null)
+                {
+                    var token = api.Data.Value.GetProp("cookie_token");
+                    if (!string.IsNullOrEmpty(token)) return (token, "");
+                    lastError = "接口返回成功但没有 cookie_token";
+                }
+                else lastError = $"{api.Message}（{api.Retcode}）";
+            }
+            catch (Exception ex) { lastError = ex.Message; }
+        }
+
+        // 3) Game Token 链路（Starward 同类做法）：stoken → game_token → cookie_token，
+        //    不依赖 stoken v1/v2 的换 token 风控，作为最稳兜底。
+        try
+        {
+            var gameToken = await GetGameTokenAsync(mid, aid, stokenV1);
+            if (!string.IsNullOrEmpty(gameToken))
+            {
+                var url = $"https://api-takumi.mihoyo.com/auth/api/getCookieAccountInfoByGameToken?account_id={Uri.EscapeDataString(aid)}&game_token={Uri.EscapeDataString(gameToken)}";
+                var headers = new Dictionary<string, string>
+                {
+                    ["user-agent"] = $"Mozilla/5.0 (Windows NT 10.0; Win64; x64) miHoYoBBS/{BbsVersion}",
+                    ["x-rpc-app_version"] = BbsVersion,
+                    ["x-rpc-client_type"] = "5",
+                    ["referer"] = "https://user.mihoyo.com/",
+                };
+                var api = await MiHoYoHttp.SendWithHeadersAsync("GET", url, null, headers);
+                if (api.Retcode == 0 && api.Data != null)
+                {
+                    var token = api.Data.Value.GetProp("cookie_token");
+                    if (!string.IsNullOrEmpty(token)) return (token, "");
+                }
+                else lastError = $"{api.Message}（{api.Retcode}）";
+            }
+        }
+        catch (Exception ex) { lastError = ex.Message; }
+
+        return ("", lastError);
+    }
+
+    /// <summary>用 stoken 换取 game_token（getGameToken，Cookie 只带 stuid/mid/stoken）。</summary>
+    private static async Task<string> GetGameTokenAsync(string mid, string aid, string stoken)
+    {
+        try
+        {
+            var headers = BuildPlainStokenHeaders(mid, aid, stoken);
+            var api = await MiHoYoHttp.SendWithHeadersAsync("GET",
+                "https://api-takumi.mihoyo.com/auth/api/getGameToken", null, headers);
+            if (api.Retcode == 0 && api.Data != null)
+                return api.Data.Value.GetProp("game_token");
+        }
+        catch { }
+        return "";
+    }
+    private static async Task<string> GetLTokenAsync(string mid, string aid, string stokenV1, string stokenV2)
+    {
+        if (!string.IsNullOrEmpty(stokenV2))
+        {
+            try
+            {
+                var headers = BuildAppLoginHeaders(aid, mid, $"stoken={stokenV2}", "");
+                var api = await MiHoYoHttp.SendWithHeadersAsync("GET",
+                    "https://passport-api.mihoyo.com/account/auth/api/getLTokenBySToken", null, headers);
+                if (api.Retcode == 0 && api.Data != null)
+                {
+                    var token = api.Data.Value.GetProp("ltoken");
+                    if (!string.IsNullOrEmpty(token)) return token;
+                }
+            }
+            catch { }
+        }
+
+        var query = $"uid={Uri.EscapeDataString(aid)}&stoken={Uri.EscapeDataString(stokenV1)}";
+        var urls = new[]
+        {
+            $"https://passport-api.mihoyo.com/account/auth/api/getLTokenBySToken?{query}",
+            $"https://api-takumi.mihoyo.com/auth/api/getLTokenBySToken?{query}",
+        };
+        foreach (var url in urls)
+        {
+            try
+            {
+                var headers = BuildPlainStokenHeaders(mid, aid, stokenV1);
+                var api = await MiHoYoHttp.SendWithHeadersAsync("GET", url, null, headers);
+                if (api.Retcode == 0 && api.Data != null)
+                {
+                    var token = api.Data.Value.GetProp("ltoken");
+                    if (!string.IsNullOrEmpty(token)) return token;
+                }
+            }
+            catch { }
+        }
         return "";
     }
 
-    /// <summary>stoken 换取 ltoken</summary>
-    private static async Task<string> GetLTokenAsync(string mid, string stoken)
+    /// <summary>v1 stoken 兼容请求头（UIGF 口径：Cookie 带 stuid/ltuid/mid/stoken，不强制 DS）</summary>
+    private static Dictionary<string, string> BuildPlainStokenHeaders(string mid, string aid, string stoken)
     {
-        var url = $"https://passport-api.mihoyo.com/account/auth/api/getLTokenBySToken?stoken={stoken}";
-        var headers = BuildStokenHeaders(mid, stoken, "stoken=" + stoken);
-        var api = await MiHoYoHttp.SendWithHeadersAsync("GET", url, null, headers);
-        if (api.Retcode == 0 && api.Data != null)
-            return api.Data.Value.GetProp("ltoken");
-        return "";
-    }
-
-    /// <summary>带 stoken 的通行证请求头（GET，DS 用 query 参与签名）</summary>
-    private static Dictionary<string, string> BuildStokenHeaders(string mid, string stoken, string query)
-    {
-        var t = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
-        var r = DsRandom.Next(100000, 200000).ToString();
-        var hash = $"salt={X4Salt}&t={t}&r={r}&b=&q={query}";
-        var md5 = Convert.ToHexString(MD5.HashData(Encoding.UTF8.GetBytes(hash))).ToLowerInvariant();
         return new Dictionary<string, string>
         {
             ["user-agent"] = $"Mozilla/5.0 (Windows NT 10.0; Win64; x64) miHoYoBBS/{BbsVersion}",
             ["x-rpc-app_version"] = BbsVersion,
             ["x-rpc-client_type"] = "5",
+            ["x-rpc-app_id"] = AppId,
             ["x-requested-with"] = "com.mihoyo.hyperion",
-            ["referer"] = "https://webstatic.mihoyo.com",
+            ["referer"] = "https://user.mihoyo.com/",
+            ["cookie"] = $"stuid={aid}; ltuid={aid}; account_id={aid}; mid={mid}; stoken={stoken};",
+        };
+    }
+
+    /// <summary>通行证 app_login 请求头（SToken v2 链路）：DS = md5("salt=app_login盐&t=&r=")，必须带 x-rpc-app_id。</summary>
+    private static Dictionary<string, string> BuildAppLoginHeaders(string aid, string mid, string stokenCookie, string body)
+    {
+        var t = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
+        var r = DsRandom.Next(100000, 200000).ToString();
+        var hash = $"salt={AppLoginSalt}&t={t}&r={r}";
+        var md5 = Convert.ToHexString(MD5.HashData(Encoding.UTF8.GetBytes(hash))).ToLowerInvariant();
+        return new Dictionary<string, string>
+        {
+            ["user-agent"] = $"Mozilla/5.0 (Windows NT 10.0; Win64; x64) miHoYoBBS/{BbsVersion}",
+            ["accept"] = "application/json",
+            ["x-rpc-app_version"] = BbsVersion,
+            ["x-rpc-client_type"] = "2",
+            ["x-rpc-app_id"] = AppId,
             ["x-rpc-device_id"] = DeviceId,
+            ["x-rpc-device_fp"] = "",
+            ["x-rpc-device_name"] = DeviceName,
+            ["x-rpc-device_model"] = DeviceModel,
+            ["x-requested-with"] = "com.mihoyo.hyperion",
+            ["referer"] = "https://user.mihoyo.com/",
             ["DS"] = $"{t},{r},{md5}",
-            ["cookie"] = $"mid={mid};stoken={stoken}",
+            ["cookie"] = $"stuid={aid}; ltuid={aid}; account_id={aid}; mid={mid}; {stokenCookie}; ltuid_v2={aid}; ltmid_v2={mid};",
         };
     }
 

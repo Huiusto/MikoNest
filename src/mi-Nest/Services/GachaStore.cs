@@ -10,7 +10,7 @@ namespace MiNest.Services;
 
 /// <summary>
 /// 抽卡记录本地库（学习 HoYo.Gacha：本地持久化 + 多账号/多游戏 + UIGF/SRGF 标准导入导出）。
-/// 数据保存在 %AppData%\mi-Nest\gacha_records.json，按 (游戏 + UID + 记录ID) 去重合并。
+/// 数据保存在 %AppData%\MikoNest\gacha_records.json，按 (游戏 + UID + 记录ID) 去重合并。
 /// </summary>
 public static class GachaStore
 {
@@ -164,7 +164,7 @@ public static class GachaStore
                 lang = "zh-cn",
                 region_time_zone = 8,
                 export_timestamp = DateTimeOffset.Now.ToUnixTimeSeconds(),
-                export_app = "mi-Nest",
+                export_app = "MikoNest",
                 export_app_version = "0.1.5",
                 uigf_version = "v4.0",
             },
@@ -196,7 +196,7 @@ public static class GachaStore
                 uid,
                 lang = "zh-cn",
                 export_timestamp = DateTimeOffset.Now.ToUnixTimeSeconds(),
-                export_app = "mi-Nest",
+                export_app = "MikoNest",
                 export_app_version = "0.1.5",
                 srgf_version = "v1.0",
             },

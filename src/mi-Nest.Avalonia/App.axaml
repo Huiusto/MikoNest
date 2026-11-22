@@ -7,24 +7,39 @@
     <ResourceDictionary>
       <ResourceDictionary.ThemeDictionaries>
         <ResourceDictionary x:Key="Light">
-          <SolidColorBrush x:Key="PageBgFlat" Color="#F4F6FC"/>
+          <SolidColorBrush x:Key="PageBgFlat" Color="#EEF2FB"/>
           <LinearGradientBrush x:Key="PageBg" StartPoint="0%,0%" EndPoint="100%,100%">
-            <GradientStop Color="#FBFCFE" Offset="0"/>
-            <GradientStop Color="#EFF3FB" Offset="0.55"/>
-            <GradientStop Color="#E6ECF9" Offset="1"/>
+            <GradientStop Color="#FCFDFF" Offset="0"/>
+            <GradientStop Color="#F2F5FD" Offset="0.5"/>
+            <GradientStop Color="#E4EBFA" Offset="1"/>
           </LinearGradientBrush>
-          <SolidColorBrush x:Key="SidebarBg" Color="#F7FEFFFF"/>
-          <SolidColorBrush x:Key="CardBg" Color="#F7FFFFFF"/>
-          <SolidColorBrush x:Key="CardBorder" Color="#E1E7F2"/>
-          <SolidColorBrush x:Key="InputBg" Color="#F1F4FA"/>
-          <SolidColorBrush x:Key="TextPrimary" Color="#161A23"/>
-          <SolidColorBrush x:Key="TextSecondary" Color="#6A7488"/>
-          <SolidColorBrush x:Key="Divider" Color="#E7EBF4"/>
-          <SolidColorBrush x:Key="Accent" Color="#0A84FF"/>
-          <SolidColorBrush x:Key="AccentSoft" Color="#1F0A84FF"/>
-          <SolidColorBrush x:Key="AccentText" Color="#0A6BD6"/>
+          <SolidColorBrush x:Key="SidebarBg" Color="#F8FBFFFF"/>
+          <SolidColorBrush x:Key="CardBg" Color="#FFFFFFFF"/>
+          <SolidColorBrush x:Key="CardBorder" Color="#E4E9F5"/>
+          <SolidColorBrush x:Key="InputBg" Color="#F3F6FC"/>
+          <SolidColorBrush x:Key="TextPrimary" Color="#12151F"/>
+          <SolidColorBrush x:Key="TextSecondary" Color="#68718A"/>
+          <SolidColorBrush x:Key="Divider" Color="#E9EDF7"/>
+          <SolidColorBrush x:Key="Accent" Color="#4C6FFF"/>
+          <SolidColorBrush x:Key="AccentSoft" Color="#1A4C6FFF"/>
+          <SolidColorBrush x:Key="AccentText" Color="#3A55E0"/>
+          <SolidColorBrush x:Key="AccentAlt" Color="#8B5CF6"/>
+          <SolidColorBrush x:Key="Gold" Color="#D9A93C"/>
           <SolidColorBrush x:Key="HoverBg" Color="#12000000"/>
           <SolidColorBrush x:Key="CardShadow" Color="#120E1A33"/>
+          <LinearGradientBrush x:Key="BrandGradient" StartPoint="0%,0%" EndPoint="100%,100%">
+            <GradientStop Color="#4C6FFF" Offset="0"/>
+            <GradientStop Color="#8B5CF6" Offset="1"/>
+          </LinearGradientBrush>
+          <LinearGradientBrush x:Key="AccentGradient" StartPoint="0%,0%" EndPoint="100%,100%">
+            <GradientStop Color="#4C6FFF" Offset="0"/>
+            <GradientStop Color="#6E6BFF" Offset="0.55"/>
+            <GradientStop Color="#8B5CF6" Offset="1"/>
+          </LinearGradientBrush>
+          <LinearGradientBrush x:Key="NavActiveGradient" StartPoint="0%,0%" EndPoint="100%,0%">
+            <GradientStop Color="#204C6FFF" Offset="0"/>
+            <GradientStop Color="#0E8B5CF6" Offset="1"/>
+          </LinearGradientBrush>
         </ResourceDictionary>
         <ResourceDictionary x:Key="Dark">
           <SolidColorBrush x:Key="PageBgFlat" Color="#0D1117"/>
@@ -40,9 +55,24 @@
           <SolidColorBrush x:Key="TextPrimary" Color="#ECF1FA"/>
           <SolidColorBrush x:Key="TextSecondary" Color="#98A3B7"/>
           <SolidColorBrush x:Key="Divider" Color="#262E3C"/>
-          <SolidColorBrush x:Key="Accent" Color="#0A84FF"/>
+          <SolidColorBrush x:Key="Accent" Color="#5B7CFF"/>
           <SolidColorBrush x:Key="AccentSoft" Color="#330A84FF"/>
-          <SolidColorBrush x:Key="AccentText" Color="#6FB6FF"/>
+          <SolidColorBrush x:Key="AccentText" Color="#8FB6FF"/>
+          <SolidColorBrush x:Key="AccentAlt" Color="#A78BFA"/>
+          <SolidColorBrush x:Key="Gold" Color="#E8BE63"/>
+          <LinearGradientBrush x:Key="BrandGradient" StartPoint="0%,0%" EndPoint="100%,100%">
+            <GradientStop Color="#5B7CFF" Offset="0"/>
+            <GradientStop Color="#A78BFA" Offset="1"/>
+          </LinearGradientBrush>
+          <LinearGradientBrush x:Key="AccentGradient" StartPoint="0%,0%" EndPoint="100%,100%">
+            <GradientStop Color="#5B7CFF" Offset="0"/>
+            <GradientStop Color="#6E6BFF" Offset="0.55"/>
+            <GradientStop Color="#A78BFA" Offset="1"/>
+          </LinearGradientBrush>
+          <LinearGradientBrush x:Key="NavActiveGradient" StartPoint="0%,0%" EndPoint="100%,0%">
+            <GradientStop Color="#334C6FFF" Offset="0"/>
+            <GradientStop Color="#12A78BFA" Offset="1"/>
+          </LinearGradientBrush>
           <SolidColorBrush x:Key="HoverBg" Color="#14FFFFFF"/>
           <SolidColorBrush x:Key="CardShadow" Color="#40000000"/>
         </ResourceDictionary>
@@ -78,20 +108,25 @@
       <Setter Property="Background" Value="{DynamicResource CardBg}"/>
       <Setter Property="BorderBrush" Value="{DynamicResource CardBorder}"/>
       <Setter Property="BorderThickness" Value="1"/>
-      <Setter Property="CornerRadius" Value="14"/>
-      <Setter Property="Padding" Value="16"/>
+      <Setter Property="CornerRadius" Value="18"/>
+      <Setter Property="Padding" Value="18"/>
+      <Setter Property="BoxShadow" Value="0 10 28 0 #0F1B2A4D"/>
     </Style>
 
     <!-- 主按钮 -->
     <Style Selector="Button.primary">
-      <Setter Property="Background" Value="{DynamicResource Accent}"/>
+      <Setter Property="Background" Value="{DynamicResource AccentGradient}"/>
       <Setter Property="Foreground" Value="White"/>
       <Setter Property="FontSize" Value="13.5"/>
       <Setter Property="FontWeight" Value="SemiBold"/>
-      <Setter Property="CornerRadius" Value="10"/>
-      <Setter Property="Padding" Value="18,9"/>
+      <Setter Property="CornerRadius" Value="12"/>
+      <Setter Property="Padding" Value="20,10"/>
       <Setter Property="BorderThickness" Value="0"/>
       <Setter Property="Cursor" Value="Hand"/>
+    </Style>
+    <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource AccentGradient}"/>
+      <Setter Property="Opacity" Value="0.92"/>
     </Style>
 
     <!-- 次级按钮 -->
@@ -99,8 +134,8 @@
       <Setter Property="Background" Value="{DynamicResource InputBg}"/>
       <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
       <Setter Property="FontSize" Value="12.5"/>
-      <Setter Property="CornerRadius" Value="10"/>
-      <Setter Property="Padding" Value="14,8"/>
+      <Setter Property="CornerRadius" Value="12"/>
+      <Setter Property="Padding" Value="16,9"/>
       <Setter Property="BorderBrush" Value="{DynamicResource CardBorder}"/>
       <Setter Property="BorderThickness" Value="1"/>
       <Setter Property="Cursor" Value="Hand"/>
@@ -110,19 +145,51 @@
     <Style Selector="Button.nav">
       <Setter Property="Background" Value="Transparent"/>
       <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
-      <Setter Property="CornerRadius" Value="10"/>
-      <Setter Property="Padding" Value="12,8"/>
+      <Setter Property="CornerRadius" Value="12"/>
+      <Setter Property="Padding" Value="8,6"/>
       <Setter Property="HorizontalAlignment" Value="Stretch"/>
       <Setter Property="HorizontalContentAlignment" Value="Left"/>
       <Setter Property="FontSize" Value="12.5"/>
       <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="0:0:0.18"/>
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button.nav:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource HoverBg}"/>
     </Style>
     <Style Selector="Button.nav.active /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="{DynamicResource AccentSoft}"/>
+      <Setter Property="Background" Value="{DynamicResource NavActiveGradient}"/>
     </Style>
     <Style Selector="Button.nav.active">
-      <Setter Property="Foreground" Value="{DynamicResource AccentText}"/>
+      <Setter Property="Foreground" Value="White"/>
       <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+
+    <!-- 导航图标底座 -->
+    <Style Selector="Border.navGlyph">
+      <Setter Property="Width" Value="28"/>
+      <Setter Property="Height" Value="28"/>
+      <Setter Property="CornerRadius" Value="9"/>
+      <Setter Property="Background" Value="{DynamicResource InputBg}"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="Border.navGlyph.active">
+      <Setter Property="Background" Value="{DynamicResource BrandGradient}"/>
+    </Style>
+    <Style Selector="TextBlock.navGlyphText">
+      <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+      <Setter Property="HorizontalAlignment" Value="Center"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+      <Setter Property="FontSize" Value="13"/>
+    </Style>
+    <Style Selector="TextBlock.navGlyphText.active">
+      <Setter Property="Foreground" Value="White"/>
+    </Style>
+    <Style Selector="TextBlock.navGlyphText.dim">
+      <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
     </Style>
   </Application.Styles>
 </Application>

@@ -16,7 +16,7 @@ using MiNest.Services;
 
 namespace MiNest.Avalonia.Views;
 
-/// <summary>启动页：官方版本壁纸轮换（靠左圆点切换）、游戏切换、开始游戏 / 获取游戏。</summary>
+/// <summary>启动页：官方版本壁纸轮换（靠左圆点切换）、游戏切换、开始游戏 / 安装游戏。</summary>
 public partial class LaunchView : UserControl
 {
     private sealed record GameTab(string Key, string Name, string Sub, string Download);
@@ -199,6 +199,75 @@ public partial class LaunchView : UserControl
         catch (Exception ex) { ShowDialog("启动失败", ex.Message); }
     }
 
+    private void BtnGameSettings_Click(object sender, global::Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        var game = Games.First(g => g.Key == _gameKey);
+        var dir = SettingsService.Settings.GamePaths.TryGetValue(_gameKey, out var p) ? p : "";
+        var win = new Window
+        {
+            Title = $"游戏设置 · {game.Name}",
+            Width = 500,
+            Height = 330,
+            CanResize = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Background = (IBrush?)Application.Current?.Resources["CardBg"] ?? Brushes.White,
+            ShowInTaskbar = false,
+        };
+        var body = new StackPanel { Margin = new Thickness(22), Spacing = 12 };
+        body.Children.Add(new TextBlock { Text = $"游戏设置 · {game.Name}", FontSize = 18, FontWeight = FontWeight.Bold });
+        body.Children.Add(new TextBlock
+        {
+            Text = $"安装目录：{(string.IsNullOrEmpty(dir) ? "尚未定位" : dir)}",
+            FontSize = 12, TextWrapping = TextWrapping.Wrap,
+        });
+        body.Children.Add(new TextBlock
+        {
+            Text = "可在下方打开目录或重新定位游戏。",
+            FontSize = 11.5, Foreground = new SolidColorBrush(Color.Parse("#8A94A6")),
+        });
+
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        var open = new Button { Content = "打开安装目录", Classes = { "ghost" }, Height = 34, Padding = new Thickness(14, 0) };
+        open.Click += (_, _) => OpenPath(dir);
+        var locate = new Button { Content = "重新定位游戏", Classes = { "ghost" }, Height = 34, Padding = new Thickness(14, 0) };
+        locate.Click += async (_, _) =>
+        {
+            var top = TopLevel.GetTopLevel(this);
+            if (top == null) return;
+            var folders = await top.StorageProvider.OpenFolderPickerAsync(new global::Avalonia.Platform.Storage.FolderPickerOpenOptions
+            {
+                Title = $"选择{game.Name}安装目录", AllowMultiple = false,
+            });
+            var folder = folders.FirstOrDefault();
+            var path = folder?.Path?.LocalPath;
+            if (string.IsNullOrEmpty(path)) return;
+            SettingsService.Settings.GamePaths[_gameKey] = path;
+            SettingsService.Save();
+            win.Close();
+            ShowDialog("已更新游戏目录", path);
+        };
+        row.Children.Add(open);
+        row.Children.Add(locate);
+        body.Children.Add(row);
+
+        var close = new Button { Content = "关闭", Classes = { "primary" }, Height = 34, Padding = new Thickness(22, 0), HorizontalAlignment = HorizontalAlignment.Right };
+        close.Click += (_, _) => win.Close();
+        body.Children.Add(close);
+        win.Content = body;
+        win.ShowDialog((Window)TopLevel.GetTopLevel(this)!);
+    }
+
+    private static void OpenPath(string path)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(path)) return;
+            if (OperatingSystem.IsMacOS()) Process.Start("open", path);
+            else Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+        }
+        catch { }
+    }
+
     private void BtnGet_Click(object sender, global::Avalonia.Interactivity.RoutedEventArgs e)
     {
         var game = Games.First(g => g.Key == _gameKey);
@@ -214,7 +283,7 @@ public partial class LaunchView : UserControl
 
         var text = new TextBlock
         {
-            Text = $"将打开{game.Name}官方下载页面，下载安装包后回到 mi-Nest 设置好游戏目录即可一键启动。",
+            Text = $"将打开{game.Name}官方下载页面，下载安装包后回到 MikoNest 设置好游戏目录即可一键启动。",
             TextWrapping = TextWrapping.Wrap,
             FontSize = 12.5,
             Foreground = new SolidColorBrush(Color.Parse("#4A5468")),

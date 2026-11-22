@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Styling;
 
@@ -36,6 +37,30 @@ public static class UiTheme
         foreach (var t in Themes)
             if (string.Equals(t.Key, key, StringComparison.OrdinalIgnoreCase)) return t;
         return Themes[0];
+    }
+
+    /// <summary>
+    /// 代码里取主题画刷。App.axaml 的颜色放在 ThemeDictionaries 里，
+    /// 直接用 Resources["key"] 拿不到（会得到 null），这里按当前明暗主题查。
+    /// </summary>
+    public static IBrush Brush(string key, string fallback)
+    {
+        var app = Application.Current;
+        if (app == null) return new SolidColorBrush(Color.Parse(fallback));
+
+        if (app.Resources.TryGetValue(key, out var top) && top is IBrush b0) return b0;
+
+        var variant = app.ActualThemeVariant;
+        if (app.Resources.ThemeDictionaries.TryGetValue(variant, out var dict) && dict is ResourceDictionary rd
+            && rd.TryGetValue(key, out var v1) && v1 is IBrush b1)
+            return b1;
+
+        foreach (var d in app.Resources.ThemeDictionaries.Values)
+        {
+            if (d is ResourceDictionary r && r.TryGetValue(key, out var v2) && v2 is IBrush b2)
+                return b2;
+        }
+        return new SolidColorBrush(Color.Parse(fallback));
     }
 
     public static bool SystemIsDark()

@@ -3,12 +3,13 @@ using System.IO;
 using System.Windows;
 using System.Windows.Input;
 using MiNest.Models;
+using MiNest.Services;
 
 namespace MiNest.Windows;
 
 /// <summary>
 /// 仿官方 HoYoPlay「选择安装路径」弹窗：安装路径 / 语言 / 所需空间 / 自动创建子文件夹 / 开始安装。
-/// 安装与预下载的实际下载解压交给本机米哈游官方启动器完成。
+/// 安装与预下载都由 MikoNest 读取官方散文件清单后逐文件写入，不调用官方启动器。
 /// </summary>
 public partial class InstallGameDialog : Window
 {
@@ -34,9 +35,14 @@ public partial class InstallGameDialog : Window
             ? game.Name
             : $"{game.Name}  {version}{(preDownload ? "（预下载）" : "")}";
         TxtTip.Text = preDownload
-            ? "官方已发布预下载包：先在后台下载，版本更新当天可快速完成更新。下载将调用本机米哈游官方启动器完成。"
-            : "下载与解压将调用本机米哈游官方启动器完成，安装完成后可直接在本软件启动游戏。";
+            ? "将按官方清单把预下载文件逐块写入指定目录，不下载整包、不再解压，可随时停止。"
+            : "下载与写入都由 MikoNest 在软件内逐文件完成，不下载整包、不再解压，可随时停止并清理。";
         BtnInstall.Content = preDownload ? "开始预下载" : "开始安装";
+
+        // 更新已有安装时直接复用原目录，不再自动套一层游戏子文件夹。
+        if (!string.IsNullOrWhiteSpace(defaultDir) && Directory.Exists(defaultDir)
+            && GameLocator.FindExe(defaultDir, game) != null)
+            ChkSubFolder.IsChecked = false;
 
         UpdatePathText();
         UpdateSpaceText(needBytes);

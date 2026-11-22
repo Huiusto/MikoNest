@@ -7,12 +7,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
-    <AssemblyName>mi-Nest</AssemblyName>
+    <AssemblyName>MikoNest</AssemblyName>
     <RootNamespace>MiNest</RootNamespace>
-    <Version>0.1.13</Version>
-    <Authors>mi-Nest Contributors</Authors>
-    <Product>mi-Nest</Product>
-    <Description>mi-Nest - 米哈游 PC 多功能桌面客户端（开源）</Description>
+    <Version>0.1.28</Version>
+    <Authors>MikoNest Contributors</Authors>
+    <Product>MikoNest</Product>
+    <Description>MikoNest - 米哈游 PC 多功能桌面客户端（开源）</Description>
     <ApplicationIcon>Assets\logo.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
@@ -21,6 +21,7 @@
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2792.45" />
     <PackageReference Include="QRCoder" Version="1.6.0" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="9.0.0" />
+    <PackageReference Include="ZstdSharp.Port" Version="0.8.6" />
   </ItemGroup>
 
   <ItemGroup>
@@ -32,3 +33,5 @@
   </Target>
 
 </Project>
+
+

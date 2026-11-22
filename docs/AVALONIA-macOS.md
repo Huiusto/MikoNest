@@ -1,4 +1,4 @@
-# mi-Nest · Avalonia 跨平台 UI 与 macOS 版
+# MikoNest · Avalonia 跨平台 UI 与 macOS 版
 
 本目录说明 `src/mi-Nest.Avalonia` 的定位、构建方式与当前完成度。
 
@@ -12,7 +12,7 @@
 
 | 页面 | 能力 |
 | --- | --- |
-| 启动 | 官方版本壁纸自动同步与缓存、左侧固定尺寸圆点切换、四款游戏切换、开始游戏、获取游戏弹窗 |
+| 启动 | 官方版本壁纸自动同步与缓存、左侧固定尺寸圆点切换、四款游戏切换、开始游戏、安装游戏弹窗 |
 | 抽卡记录 | 四列卡池统计（5★ 平均 / 5★ / 4★ / 3★）、限定池金色 `UP!` 标记、每条记录下方 0–90 保底进度条、UID 切换 |
 | 设置 | 13 套配色（含跟随系统）、界面不透明度、语言列表、各游戏安装目录、关闭行为、数据目录、开源说明 |
 | 账号 / 任务 / 米哈游相关 | 说明与官方入口 |
@@ -36,22 +36,24 @@ dotnet publish src/mi-Nest.Avalonia/MiNest.Avalonia.csproj -c Release -r osx-x64
 `.app` 目录结构：
 
 ```
-mi-Nest.app/Contents/
+MikoNest.app/Contents/
 ├── Info.plist
-├── MacOS/        # 发布产物（可执行文件 mi-Nest + 依赖 dll/dylib）
+├── MacOS/        # 发布产物（可执行文件 MikoNest + 依赖 dll/dylib）
 └── Resources/    # readme.txt
 ```
 
 ## 在 macOS 上首次运行
 
 ```bash
-xattr -cr /Applications/mi-Nest.app
-chmod +x /Applications/mi-Nest.app/Contents/MacOS/mi-Nest
-open /Applications/mi-Nest.app
+xattr -cr /Applications/MikoNest.app
+chmod +x /Applications/MikoNest.app/Contents/MacOS/MikoNest
+open /Applications/MikoNest.app
 ```
 
-数据目录：`~/Library/Application Support/mi-Nest`，与 Windows 版 `%AppData%\mi-Nest` 的 `settings.json`、`gacha_records.json` 结构一致，可直接拷贝。
+数据目录：`~/Library/Application Support/MikoNest`，与 Windows 版 `%AppData%\MikoNest` 的 `settings.json`、`gacha_records.json` 结构一致，可直接拷贝。
 
 ## 发布状态
 
-`dist/mi-Nest-0.1.13-osx-arm64.zip`、`dist/mi-Nest-0.1.13-osx-x64.zip` 由 Windows 交叉发布，Mach-O 可执行文件与包结构已校验；尚未做代码签名，也未在真机 macOS 上运行验证。若要对外分发，建议在 Mac 上执行 `codesign --deep --force --sign - mi-Nest.app` 或使用开发者证书公证。
+`dist/0.1.28/MikoNest-0.1.28-osx-arm64.zip`、`dist/0.1.28/MikoNest-0.1.28-osx-x64.zip` 由 Windows 交叉发布，Mach-O 可执行文件与包结构已校验；尚未做代码签名，也未在真机 macOS 上运行验证。若要对外分发，建议在 Mac 上执行 `codesign --deep --force --sign - MikoNest.app` 或使用开发者证书公证。
+
+

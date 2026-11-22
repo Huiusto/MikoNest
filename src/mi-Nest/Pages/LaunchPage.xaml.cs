@@ -4,11 +4,13 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using Microsoft.Web.WebView2.Core;
+using Microsoft.Win32;
 using MiNest.Models;
 using MiNest.Services;
 
@@ -32,14 +34,55 @@ public partial class LaunchPage : UserControl
     private bool _paused;
     private bool _preparing;
     private LauncherBackgroundService.PreDownloadInfo? _preDownload;
+    private InstallUi? _install;
+    private CancellationTokenSource? _installCts;
+    private GameInstallService.PauseController? _installPause;
+    private bool _installStopRequested;
+    private DateTime _lastInstallPush = DateTime.MinValue;
+    private string? _installError;
     private bool _webReady;
     private readonly string _rootDir = AppPaths.DataDir;
+
+    /// <summary>启动页按钮区域显示的安装状态，进度变化不再经过独立窗口。</summary>
+    private sealed class InstallUi
+    {
+        public string Key = "";
+        public string Name = "";
+        public string Dest = "";
+        public string Language = "zh-cn";
+        public string Stage = "正在获取官方安装清单…";
+        public long Done;
+        public long Total;
+        public long InstallDone;
+        public long InstallTotal;
+        public double Speed;
+        public bool Paused;
+        public bool Stopping;
+        public bool Completed;
+    }
 
     public LaunchPage(MainWindow main)
     {
         InitializeComponent();
         _main = main;
         Loaded += OnLoaded;
+        LauncherBackgroundService.BackgroundReady += OnBackgroundReady;
+        Unloaded += (_, _) => LauncherBackgroundService.BackgroundReady -= OnBackgroundReady;
+    }
+
+    /// <summary>后台预加载完某款游戏的动态壁纸：若正是当前游戏，刷新列表让切换立即生效</summary>
+    private void OnBackgroundReady(string key)
+    {
+        if (!IsLoaded) return;
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (key != _selectedKey) return;
+            var cached = LauncherBackgroundService.GetCached(key);
+            if (cached == null) return;
+            _bgItems = cached.Items;
+            if (_bgIndex >= _bgItems.Count) _bgIndex = Math.Max(0, _bgItems.Count - 1);
+            PushState();
+        }));
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
@@ -74,17 +117,19 @@ public partial class LaunchPage : UserControl
             Web.CoreWebView2.NavigationCompleted += async (_, __) =>
             {
                 _webReady = true;
-                AutoSelectLocatedGame();
+                SelectFirstOrderedGame();
                 LoadBackgrounds(_selectedKey);
                 PushState();
                 RefreshPreDownload();
                 await EnsureCurrentVideoAsync();
+                // 其余游戏与其余动态壁纸在后台全部预加载，切换游戏时不再等待
+                _ = LauncherBackgroundService.PrefetchAllAsync();
             };
             Web.CoreWebView2.Navigate("https://minest.local/launch/launch.html");
         }
         catch (Exception ex)
         {
-            MessageBox.Show("启动页初始化失败：" + ex.Message, "mi-Nest", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show("启动页初始化失败：" + ex.Message, "MikoNest", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
@@ -121,27 +166,46 @@ public partial class LaunchPage : UserControl
 
     // ---------- 状态推送 ----------
 
-    private void AutoSelectLocatedGame()
+    /// <summary>启动页首页固定显示用户排序里的第一款游戏。</summary>
+    private void SelectFirstOrderedGame()
     {
-        var located = GameLocator.Games
-            .Where(g => IsLocated(g.Key))
-            .Select(g => g.Key)
-            .ToList();
-        if (located.Count > 0 && !located.Contains(_selectedKey))
-            _selectedKey = located[0];
+        var first = OrderedGames().FirstOrDefault();
+        if (first != null) _selectedKey = first.Key;
+    }
+
+    /// <summary>按用户在「全部游戏」下拉里设定的顺序排列，新加入的游戏补在末尾。</summary>
+    private static List<GameDef> OrderedGames()
+    {
+        var result = new List<GameDef>();
+        var remaining = GameLocator.Games.ToList();
+        var order = SettingsService.Settings.LaunchGameOrder ?? new List<string>();
+        foreach (var key in order)
+        {
+            var g = remaining.FirstOrDefault(x => x.Key == key);
+            if (g == null) continue;
+            result.Add(g);
+            remaining.Remove(g);
+        }
+        result.AddRange(remaining);
+        return result;
     }
 
     private static bool IsLocated(string key)
     {
-        if (SettingsService.Settings.GamePaths.TryGetValue(key, out var p) && Directory.Exists(p)) return true;
-        return GameLocator.DetectInstallDir(GameLocator.Get(key)) != null;
+        var game = GameLocator.Get(key);
+        if (SettingsService.Settings.GamePaths.TryGetValue(key, out var p) &&
+            Directory.Exists(p) && GameLocator.FindExe(p, game) != null)
+            return true;
+
+        var detected = GameLocator.DetectInstallDir(game);
+        return detected != null && GameLocator.FindExe(detected, game) != null;
     }
 
     private void PushState()
     {
         if (!_webReady) return;
 
-        var games = GameLocator.Games.Select(g => new
+        var games = OrderedGames().Select(g => new
         {
             key = g.Key,
             name = g.Name,
@@ -182,10 +246,17 @@ public partial class LaunchPage : UserControl
             custom = hasCustom && _useCustom,
             preparing = _preparing,
             accent = AccentHex(),
-            preDownload = _preDownload == null ? null : new
+            systemAccent = SystemAccentHex(),
+            preDownload = _preDownload == null || !IsLocated(_selectedKey) ? null : new
             {
-                text = $"预下载 {_preDownload.Version} · {FormatSize(_preDownload.SizeBytes)}",
+                version = _preDownload.Version,
+                size = FormatSize(_preDownload.SizeBytes),
+                kind = _preDownload.IsPreDownload ? "预下载" : "新版本",
+                text = _preDownload.IsPreDownload
+                    ? $"预下载 {_preDownload.Version} · {FormatSize(_preDownload.SizeBytes)}"
+                    : $"发现新版本 {_preDownload.Version}（本地 {_preDownload.LocalVersion}），点击更新",
             },
+            install = _install != null && _install.Key == _selectedKey ? InstallPayload(_install) : null,
             hint = BuildHint(),
         };
 
@@ -199,6 +270,37 @@ public partial class LaunchPage : UserControl
         var brush = Application.Current.TryFindResource("Accent") as SolidColorBrush;
         var c = brush?.Color ?? Color.FromRgb(0xD9, 0x4F, 0x5C);
         return $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+    }
+
+    /// <summary>Windows 系统强调色；安装进度、安装详情等安装相关配色跟它走，读不到时回退软件强调色。</summary>
+    private static string SystemAccentHex()
+    {
+        try
+        {
+            // Windows 11：AccentColor 为 AABBGGRR；Windows 10 也可能只有 ColorizationColor（AARRGGBB）。
+            var accent = Registry.GetValue(@"HKEY_CURRENT_USER\Software\Microsoft\Windows\DWM", "AccentColor", null);
+            if (accent is int a)
+            {
+                var r = (byte)(a & 0xFF);
+                var g = (byte)((a >> 8) & 0xFF);
+                var b = (byte)((a >> 16) & 0xFF);
+                if (r + g + b > 24) return $"#{r:X2}{g:X2}{b:X2}";
+            }
+
+            var colorization = Registry.GetValue(@"HKEY_CURRENT_USER\Software\Microsoft\Windows\DWM", "ColorizationColor", null);
+            if (colorization is int c)
+            {
+                var r = (byte)((c >> 16) & 0xFF);
+                var g = (byte)((c >> 8) & 0xFF);
+                var b = (byte)(c & 0xFF);
+                if (r + g + b > 24) return $"#{r:X2}{g:X2}{b:X2}";
+            }
+        }
+        catch
+        {
+            // 注册表不可读时回退
+        }
+        return AccentHex();
     }
 
     private void PushPatch(string json)
@@ -218,11 +320,19 @@ public partial class LaunchPage : UserControl
     {
         var g = GameLocator.Get(_selectedKey);
         _locatedDir = ResolveDir();
+        if (_install != null && _install.Key == _selectedKey)
+        {
+            if (_install.Completed) return "安装完成，游戏文件已写入，可以直接开始游戏。";
+            if (_install.Stopping) return "正在停止安装并清理本次写入的文件…";
+            if (_install.Paused) return "安装已暂停。点「继续安装」从当前位置继续，不会重新下载。";
+            return "正在安装游戏。鼠标靠近主按钮查看下载详情；点主按钮可暂停安装。";
+        }
+        if (!string.IsNullOrWhiteSpace(_installError)) return _installError!;
         if (_runningGames.Contains(_selectedKey)) return "游戏运行中，可直接开始其它游戏；游戏退出后此按钮自动恢复。";
-        if (_locatedDir == null) return "点击「获取游戏」会弹出安装窗口（安装路径 / 语言 / 磁盘空间），确认后由官方启动器完成下载安装。";
+        if (_locatedDir == null) return "点击「安装游戏」会弹出安装窗口，确认路径与语音后由软件内直接下载安装，不再跳转官方启动器。";
         var exe = GameLocator.FindExe(_locatedDir, g);
         return exe == null
-            ? $"已定位目录，但未找到主程序（{string.Join(" / ", g.ExeNames)}）"
+            ? "该目录中没有游戏主程序，点击「安装游戏」会重新选择安装位置；也可以点「定位游戏」换到正确目录"
             : "已定位：" + _locatedDir;
     }
 
@@ -353,8 +463,10 @@ public partial class LaunchPage : UserControl
                         if (!string.IsNullOrEmpty(key) && key != _selectedKey)
                         {
                             _selectedKey = key;
+                            _installError = null;
                             LoadBackgrounds(key);
                             PushState();
+                            RefreshPreDownload();
                         }
                         break;
                     }
@@ -387,6 +499,61 @@ public partial class LaunchPage : UserControl
                 case "start":
                     await StartGameAsync();
                     break;
+                case "installToggle":
+                    ToggleInstallPause();
+                    break;
+                case "installStop":
+                    StopInstallAndCleanup();
+                    break;
+                case "gameSettings":
+                    {
+                        var g = GameLocator.Get(_selectedKey);
+                        var installActive = _install != null && _install.Key == _selectedKey
+                            && !_install.Completed && !_install.Stopping;
+                        new MiNest.Windows.GameSettingsWindow(
+                            _selectedKey, g, ResolveDir(), installActive, StopInstallAndCleanup)
+                        {
+                            Owner = Window.GetWindow(this),
+                        }.ShowDialog();
+                        PushState();
+                        break;
+                    }
+                case "gameOrder":
+                    {
+                        var keys = new List<string>();
+                        using (var doc = JsonDocument.Parse(e.WebMessageAsJson))
+                        {
+                            if (doc.RootElement.TryGetProperty("order", out var arr) &&
+                                arr.ValueKind == JsonValueKind.Array)
+                            {
+                                foreach (var item in arr.EnumerateArray())
+                                {
+                                    if (item.ValueKind != JsonValueKind.String) continue;
+                                    var key = item.GetString();
+                                    if (key != null && GameLocator.Games.Any(g => g.Key == key) &&
+                                        !keys.Contains(key))
+                                        keys.Add(key);
+                                }
+                            }
+                        }
+                        if (keys.Count > 0)
+                        {
+                            SettingsService.Settings.LaunchGameOrder = keys;
+                            SettingsService.Save();
+
+                            // 首页始终展示排序后的第一款游戏。
+                            var first = OrderedGames().FirstOrDefault();
+                            if (first != null && first.Key != _selectedKey)
+                            {
+                                _selectedKey = first.Key;
+                                _installError = null;
+                                LoadBackgrounds(_selectedKey);
+                            }
+                            PushState();
+                            RefreshPreDownload();
+                        }
+                        break;
+                    }
                 case "locate":
                     PickFolder();
                     break;
@@ -439,11 +606,11 @@ public partial class LaunchPage : UserControl
         }
         try
         {
-            var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "mi-Nest 壁纸");
+            var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "MikoNest 壁纸");
             Directory.CreateDirectory(dir);
             var name = GameLocator.Get(_selectedKey).Name + "_" + Path.GetFileName(src);
             File.Copy(src, Path.Combine(dir, name), true);
-            Toast("壁纸已保存到 图片\\mi-Nest 壁纸");
+            Toast("壁纸已保存到 图片\\MikoNest 壁纸");
         }
         catch (Exception ex)
         {
@@ -511,17 +678,28 @@ public partial class LaunchPage : UserControl
 
     private async Task StartGameAsync()
     {
+        if (_install != null && _install.Key == _selectedKey && !_install.Completed)
+        {
+            ToggleInstallPause();
+            return;
+        }
+
         var g = GameLocator.Get(_selectedKey);
         _locatedDir = ResolveDir();
         var exe = _locatedDir != null ? GameLocator.FindExe(_locatedDir, g) : null;
 
         if (exe == null)
         {
-            if (_locatedDir == null) { await InstallGameAsync(); }
-            else Toast("未在目录中找到游戏主程序，请点击「定位游戏」重新选择");
+            // 按钮显示「安装游戏」时，即使旧目录仍存在也必须进入安装流程，不能只提示定位失败。
+            await InstallGameAsync();
             return;
         }
         if (_runningGames.Contains(_selectedKey)) return;
+
+        // 打开 / 启动游戏时自动检查 MikoNest 自身更新；用户选择更新时安装器会接管并退出旧进程。
+        var owner = Window.GetWindow(this);
+        if (owner != null && await UpdatePromptService.CheckAndPromptAsync(owner))
+            return;
 
         var key = _selectedKey;
         _runningGames.Add(key);
@@ -589,27 +767,244 @@ public partial class LaunchPage : UserControl
 
     private async Task InstallGameAsync()
     {
+        if (_install != null)
+        {
+            Toast($"正在安装「{_install.Name}」，请先完成或停止当前安装。");
+            return;
+        }
+
         var g = GameLocator.Get(_selectedKey);
-        var (ver, size) = await LauncherBackgroundService.GetLatestPackageAsync(_selectedKey);
+        string ver = "";
+        long size = 0;
+        var build = await LauncherBackgroundService.GetChunkBuildAsync(_selectedKey, "zh-cn");
+        if (build != null)
+        {
+            ver = build.Version;
+            size = build.TotalUncompressedBytes;
+        }
+        else
+        {
+            (ver, size) = await LauncherBackgroundService.GetLatestPackageAsync(_selectedKey);
+        }
+
         var dlg = new MiNest.Windows.InstallGameDialog(g, DefaultGamesRoot(), false, ver, size)
         {
             Owner = Window.GetWindow(this),
         };
         if (dlg.ShowDialog() != true) return;
-        OpenOfficialLauncher(g);
+        BeginInstall(g, dlg.SelectedDir, dlg.SelectedLanguage);
     }
 
     private void ShowPreDownloadDialog()
     {
+        if (_install != null)
+        {
+            Toast($"正在安装「{_install.Name}」，请先完成或停止当前安装。");
+            return;
+        }
         if (_preDownload == null) return;
         var g = GameLocator.Get(_selectedKey);
         var dlg = new MiNest.Windows.InstallGameDialog(
-            g, DefaultGamesRoot(), true, _preDownload.Version, _preDownload.SizeBytes)
+            g, ResolveDir() ?? DefaultGamesRoot(), _preDownload.IsPreDownload, _preDownload.Version, _preDownload.SizeBytes)
         {
             Owner = Window.GetWindow(this),
         };
         if (dlg.ShowDialog() != true) return;
-        OpenOfficialLauncher(g);
+        BeginInstall(g, dlg.SelectedDir, dlg.SelectedLanguage);
+        RefreshPreDownload();
+    }
+
+    // ---------- 启动页内嵌安装 ----------
+
+    private void BeginInstall(GameDef game, string dest, string language)
+    {
+        _installError = null;
+        _installStopRequested = false;
+        _installCts?.Dispose();
+        _installCts = new CancellationTokenSource();
+        _installPause = new GameInstallService.PauseController();
+
+        var job = new InstallUi
+        {
+            Key = game.Key,
+            Name = game.Name,
+            Dest = dest,
+            Language = language,
+            Stage = "正在获取官方安装清单…",
+        };
+        _install = job;
+        _selectedKey = game.Key;
+        PushState();
+        Toast($"已开始安装 {game.Name}，进度会显示在主按钮上");
+        _ = RunInstallAsync(job, _installCts, _installPause);
+    }
+
+    private async Task RunInstallAsync(
+        InstallUi job, CancellationTokenSource cts, GameInstallService.PauseController pause)
+    {
+        var progress = new Progress<GameInstallService.Progress>(p =>
+        {
+            if (_install != job) return;
+            job.Stage = p.Stage;
+            job.Done = p.Done;
+            job.Total = p.Total;
+            job.InstallDone = p.InstallDone;
+            job.InstallTotal = p.InstallTotal;
+            job.Speed = p.BytesPerSecond;
+            PushInstallProgress();
+        });
+
+        try
+        {
+            var finalDir = await GameInstallService.InstallAsync(
+                job.Key, job.Dest, job.Language, progress, cts.Token, pause);
+
+            if (_install != job) return;
+            job.Completed = true;
+            job.Paused = false;
+            job.Stopping = false;
+            job.Dest = finalDir;
+            job.Stage = "安装完成，游戏文件已写入。";
+            if (job.Total > 0) job.Done = job.Total;
+            if (job.InstallTotal > 0) job.InstallDone = job.InstallTotal;
+            _locatedDir = ResolveDir();
+            PushState();
+            Toast($"{job.Name} 已安装完成，可以直接开始游戏");
+
+            await Task.Delay(1200);
+            if (_install == job)
+            {
+                _install = null;
+                PushState();
+            }
+            RefreshPreDownload();
+        }
+        catch (OperationCanceledException)
+        {
+            if (_install != job) return;
+            _install = null;
+            _installError = _installStopRequested ? "安装已停止，本次写入的文件和临时分片已清理。" : null;
+            if (_installStopRequested)
+            {
+                ForgetGamePathIfNotInstalled(job.Key);
+                _locatedDir = null;
+            }
+            PushState();
+            if (_installStopRequested) Toast("已停止安装，并清理本次写入的文件");
+        }
+        catch (Exception ex)
+        {
+            if (_install != job) return;
+            _install = null;
+            _installError = $"安装失败：{ex.Message} 可再次点击「安装游戏」重试。";
+            PushState();
+            Toast("安装失败：" + ex.Message);
+        }
+    }
+
+    /// <summary>停止安装并清理后，如果目录里已经没有主程序，就忘掉这条安装路径，避免主按钮误显示「开始游戏」。</summary>
+    private static void ForgetGamePathIfNotInstalled(string key)
+    {
+        if (!SettingsService.Settings.GamePaths.TryGetValue(key, out var dir)) return;
+        var game = GameLocator.Get(key);
+        var valid = !string.IsNullOrWhiteSpace(dir) &&
+                    Directory.Exists(dir) &&
+                    GameLocator.FindExe(dir, game) != null;
+        if (valid) return;
+
+        SettingsService.Settings.GamePaths.Remove(key);
+        SettingsService.Save();
+    }
+
+    private void ToggleInstallPause()
+    {
+        var job = _install;
+        if (job == null || job.Completed || job.Stopping) return;
+        if (job.Paused)
+        {
+            _installPause?.Resume();
+            job.Paused = false;
+            job.Stage = "正在继续安装…";
+            Toast("已继续安装");
+        }
+        else
+        {
+            _installPause?.Pause();
+            job.Paused = true;
+            job.Stage = "安装已暂停，点击继续安装。";
+            Toast("已暂停安装，已下载的部分会保留");
+        }
+        PushState();
+    }
+
+    private bool StopInstallAndCleanup()
+    {
+        var job = _install;
+        if (job == null || job.Completed || job.Stopping) return false;
+        _installStopRequested = true;
+        job.Stopping = true;
+        job.Paused = false;
+        job.Stage = "正在停止安装，并清理本次写入的文件…";
+        _installPause?.Resume();
+        _installCts?.Cancel();
+        PushState();
+        return true;
+    }
+
+    private object InstallPayload(InstallUi job)
+    {
+        var pct = job.Total > 0 ? Math.Clamp(job.Done * 100d / job.Total, 0, 100) : 0;
+        var remaining = Math.Max(0, job.Total - job.Done);
+        var eta = job.Speed > 1 && remaining > 0
+            ? FormatRemaining(remaining / job.Speed)
+            : job.Completed ? "00:00:00" : "计算中";
+        var title = job.Completed ? "安装完成"
+            : job.Stopping ? "正在停止"
+            : job.Paused ? "已暂停"
+            : "下载中";
+        return new
+        {
+            key = job.Key,
+            name = job.Name,
+            title,
+            percent = Math.Round(pct, 1),
+            percentText = $"{pct:0.0}%",
+            paused = job.Paused,
+            stopping = job.Stopping,
+            completed = job.Completed,
+            stage = job.Stage,
+            doneText = FormatSize(job.Done),
+            totalText = FormatSize(job.Total),
+            installDoneText = FormatSize(job.InstallDone),
+            installTotalText = FormatSize(job.InstallTotal),
+            installPercent = job.InstallTotal > 0
+                ? Math.Round(job.InstallDone * 100d / job.InstallTotal, 1)
+                : 0,
+            speedText = job.Speed > 1 ? FormatSize((long)job.Speed) + "/s" : "—",
+            etaText = eta,
+            dir = job.Dest,
+        };
+    }
+
+    private void PushInstallProgress()
+    {
+        if (!_webReady || _install == null) return;
+        var now = DateTime.UtcNow;
+        if ((now - _lastInstallPush).TotalMilliseconds < 350) return;
+        _lastInstallPush = now;
+        var payload = JsonSerializer.Serialize(new
+        {
+            install = _install.Key == _selectedKey ? InstallPayload(_install) : null,
+            hint = BuildHint(),
+        });
+        PushPatch(payload);
+    }
+
+    private static string FormatRemaining(double seconds)
+    {
+        if (seconds < 0 || double.IsNaN(seconds) || double.IsInfinity(seconds)) return "计算中";
+        var total = (long)Math.Min(seconds, 99 * 3600 + 59 * 60 + 59);
+        return $"{total / 3600:00}:{total % 3600 / 60:00}:{total % 60:00}";
     }
 
     private void OpenOfficialLauncher(GameDef g)
@@ -631,7 +1026,7 @@ public partial class LaunchPage : UserControl
         if (!string.IsNullOrEmpty(g.OfficialUrl)) _main.OpenInApp(g.OfficialUrl);
         MessageBox.Show(
             "未找到本机的米哈游官方启动器，已在软件内打开该游戏官网下载页。\n安装完成后回到本页点「定位游戏」选择安装目录即可启动。",
-            "mi-Nest", MessageBoxButton.OK, MessageBoxImage.Information);
+            "MikoNest", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     private static string? DefaultGamesRoot()
@@ -669,11 +1064,18 @@ public partial class LaunchPage : UserControl
         return bytes >= gb ? $"{bytes / gb:0.00} GB" : $"{bytes / (1024d * 1024):0} MB";
     }
 
-    /// <summary>预下载信息在后台刷新，有则推给页面</summary>
+    /// <summary>新版本 / 预下载信息在后台刷新，有则推给页面</summary>
     public async void RefreshPreDownload()
     {
         var key = _selectedKey;
-        _preDownload = await LauncherBackgroundService.GetPreDownloadAsync(key);
+        try
+        {
+            _preDownload = await LauncherBackgroundService.GetUpdateStatusAsync(key, ResolveDir());
+        }
+        catch
+        {
+            _preDownload = null;
+        }
         if (key == _selectedKey) PushState();
     }
 }

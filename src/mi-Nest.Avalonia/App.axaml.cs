@@ -15,6 +15,7 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        AppPaths.MigrateLegacyData();
         SettingsService.Load();
         GachaStore.Load();
 

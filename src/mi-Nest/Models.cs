@@ -22,13 +22,13 @@ public class GameDef
     public string OfficialUrl { get; set; } = "";
 }
 
-/// <summary>应用设置（明文部分，存 %AppData%\mi-Nest\settings.json）</summary>
+/// <summary>应用设置（明文部分，存 %AppData%\MikoNest\settings.json）</summary>
 public class AppSettings
 {
     public string Theme { get; set; } = "Light";
     /// <summary>界面语言（"" = 跟随系统；zh-Hans/zh-Hant/en/ja/ko/ru），重启后生效</summary>
     public string Language { get; set; } = "";
-    /// <summary>自定义数据目录（设置-应用信息 更改）；为空则使用默认 %AppData%\mi-Nest</summary>
+    /// <summary>自定义数据目录（设置-应用信息 更改）；为空则使用默认 %AppData%\MikoNest</summary>
     public string DataDirOverride { get; set; } = "";
     /// <summary>gameKey -> 安装目录</summary>
     public Dictionary<string, string> GamePaths { get; set; } = new();
@@ -50,7 +50,7 @@ public class AppSettings
     public bool DefaultPinApplied { get; set; }
     /// <summary>「第三方工具」页内置顶项（URL 列表，置顶的工具排在列表最前面）</summary>
     public List<string> ThirdPartyPinned { get; set; } = new();
-    /// <summary>开机自动运行 mi-Nest</summary>
+    /// <summary>开机自动运行 MikoNest</summary>
     public bool AutoStartOnBoot { get; set; }
     /// <summary>退出游戏后自动弹出启动器主界面</summary>
     public bool BringFrontOnGameExit { get; set; }
@@ -68,6 +68,10 @@ public class AppSettings
     public int CardOpacity { get; set; } = 100;
     /// <summary>抽卡记录是否显示三星条目（抽卡页「设置」）</summary>
     public bool GachaShow3Star { get; set; } = true;
+    /// <summary>用户已忽略的自动更新提示版本；同一版本不再自动弹窗，出现更高版本才重新提示</summary>
+    public string IgnoredUpdateVersion { get; set; } = "";
+    /// <summary>启动页「全部游戏」的自定义顺序（gameKey 列表；未出现的游戏按内置顺序补在末尾）</summary>
+    public List<string> LaunchGameOrder { get; set; } = new();
 }
 
 /// <summary>固定到左侧导航栏的快捷链接</summary>

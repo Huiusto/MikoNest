@@ -152,7 +152,7 @@ public partial class GachaPage : UserControl
         get
         {
             var v = ComboUid.SelectedItem as string;
-            if (string.IsNullOrEmpty(v) || v.StartsWith("全部")) return null;
+            if (string.IsNullOrEmpty(v) || v == "无账号") return null;
             return v;
         }
     }
@@ -164,18 +164,25 @@ public partial class GachaPage : UserControl
         var uids = GachaStore.GetUids(StoreKey);
         _loading = true;
         var keep = SelectedUid;
+        var prevIndex = ComboUid.SelectedIndex;
+        var hadItems = ComboUid.Items.Count > 0;
         ComboUid.Items.Clear();
         if (uids.Count == 0)
         {
-            ComboUid.Items.Add("全部");
+            ComboUid.Items.Add("无账号");
             ComboUid.SelectedIndex = 0;
         }
         else
         {
-            ComboUid.Items.Add("全部 UID");
             foreach (var u in uids) ComboUid.Items.Add(u);
-            var idx = keep != null ? uids.IndexOf(keep) + 1 : 1;
-            ComboUid.SelectedIndex = Math.Clamp(idx, 0, uids.Count);
+            int idx;
+            if (keep != null && uids.IndexOf(keep) >= 0)
+                idx = uids.IndexOf(keep);
+            else if (hadItems && prevIndex >= 0 && prevIndex < uids.Count)
+                idx = prevIndex;
+            else
+                idx = 0;
+            ComboUid.SelectedIndex = Math.Clamp(idx, 0, uids.Count - 1);
         }
         _loading = false;
     }
@@ -188,15 +195,12 @@ public partial class GachaPage : UserControl
             return;
         }
 
-        // 保底计数只在单个 UID 内才有意义：多 UID 混在一列会串号（出现 90 抽以上的“已垫”）
-        var uids = GachaStore.GetUids(_gameKey);
-        if (SelectedUid == null && uids.Count > 1)
+        // 首次进入默认显示「全部 UID」汇总；已有选择（包括「全部 UID」）时保持不动。
+        var uids = GachaStore.GetUids(StoreKey);
+        if (ComboUid.SelectedIndex < 0 && uids.Count > 0)
         {
             _loading = true;
-            if (ComboUid.Items.Count > 1)
-            {
-                ComboUid.SelectedIndex = 1;
-            }
+            ComboUid.SelectedIndex = 0;
             _loading = false;
         }
 
@@ -266,13 +270,21 @@ public partial class GachaPage : UserControl
             _ => "#C77DDB",
         };
 
-        var asc = items.OrderBy(x => x.Time).ThenBy(x => x.Id).ToList();
+        var asc = items.OrderBy(x => x.Uid).ThenBy(x => x.Time).ThenBy(x => x.Id).ToList();
         var five = new List<RowVm>();
         var four = new List<RowVm>();
         var c5 = 0;
         var c4 = 0;
+        string? uidRun = null;
         foreach (var it in asc)
         {
+            // 「全部 UID」汇总时，保底计数按 UID 分段，跨账号不能累计。
+            if (it.Uid != uidRun)
+            {
+                uidRun = it.Uid;
+                c5 = 0;
+                c4 = 0;
+            }
             c5++;
             c4++;
             if (it.RankType == "5")
@@ -297,8 +309,8 @@ public partial class GachaPage : UserControl
         var cFour = items.Count(x => x.RankType == "4");
         var cThree = items.Count(x => x.RankType == "3");
         var avgFive = five.Count > 0 ? five.Average(r => r.Pity) : 0d;
-        var start = asc.FirstOrDefault()?.Time;
-        var end = asc.LastOrDefault()?.Time;
+        var start = items.OrderBy(x => x.Time).FirstOrDefault()?.Time;
+        var end = items.OrderBy(x => x.Time).LastOrDefault()?.Time;
 
         string Pct(int n) => total > 0 ? $"{n * 100.0 / total:0.00}%" : "0.00%";
         static string Short(string? t)
@@ -506,10 +518,10 @@ public partial class GachaPage : UserControl
     private void RefreshBeyondBanners()
     {
         var uids = GachaStore.GetUids(BeyondStoreKey);
-        if (SelectedUid == null && uids.Count > 1 && ComboUid.Items.Count > 1)
+        if (ComboUid.SelectedIndex < 0 && uids.Count > 0 && ComboUid.Items.Count > 1)
         {
             _loading = true;
-            ComboUid.SelectedIndex = 1;
+            ComboUid.SelectedIndex = 0;
             _loading = false;
         }
         var uid = SelectedUid;
@@ -554,14 +566,21 @@ public partial class GachaPage : UserControl
     {
         var col = new BeyondColUi { Pool = pool, Activity = pool.Code == "2000" };
         var accentHex = col.Activity ? "#E8A33D" : "#C864E0";
-        var asc = items.OrderBy(x => x.Time).ThenBy(x => x.Id).ToList();
+        var asc = items.OrderBy(x => x.Uid).ThenBy(x => x.Time).ThenBy(x => x.Id).ToList();
         var five = new List<RowVm>();
         var four = new List<RowVm>();
         var three = new List<RowVm>();
         var c4 = 0;
         var c5 = 0;
+        string? uidRun = null;
         foreach (var it in asc)
         {
+            if (it.Uid != uidRun)
+            {
+                uidRun = it.Uid;
+                c4 = 0;
+                c5 = 0;
+            }
             c4++;
             c5++;
             if (it.RankType == "5")
@@ -593,8 +612,8 @@ public partial class GachaPage : UserControl
         var cTwo = items.Count(x => x.RankType == "2");
         var avgFour = four.Count > 0 ? four.Average(r => r.Pity) : 0d;
         var avgFive = five.Count > 0 ? five.Average(r => r.Pity) : 0d;
-        var start = asc.FirstOrDefault()?.Time;
-        var end = asc.LastOrDefault()?.Time;
+        var start = items.OrderBy(x => x.Time).FirstOrDefault()?.Time;
+        var end = items.OrderBy(x => x.Time).LastOrDefault()?.Time;
 
         string Pct(int n) => total > 0 ? $"{n * 100.0 / total:0.00}%" : "0.00%";
         static string Short(string? t)
@@ -751,7 +770,7 @@ public partial class GachaPage : UserControl
     }
 
     private static string ColorForFour(int pity)
-        => pity >= 10 ? "#C0453F" : pity >= 8 ? "#D08A3E" : "#3F9B6B";
+        => pity >= 8 ? "#C0453F" : "#3F9B6B";
 
     private void SwitchBeyondTab(BeyondColUi col, bool first)
     {
@@ -894,7 +913,7 @@ public partial class GachaPage : UserControl
 
         var stack = new StackPanel();
         stack.Children.Add(g);
-        stack.Children.Add(BuildPityBar(row.Pity));
+        stack.Children.Add(BuildPityBar(row.Pity, rank, row.Item.GachaType));
         return new Border { Child = stack, Background = Brushes.Transparent };
     }
 
@@ -1010,23 +1029,61 @@ public partial class GachaPage : UserControl
     private static string ColorFor(int pity)
         => pity >= 90 ? "#C0453F" : pity >= 74 ? "#D08A3E" : "#3F9B6B";
 
-    /// <summary>原神常驻 5★ 角色 / 武器：出现这些就不标 UP</summary>
-    private static readonly HashSet<string> StandardFiveStar = new(StringComparer.OrdinalIgnoreCase)
+    /// <summary>各游戏常驻 / 非 UP 五星名单：出现在限定池时不上 UP! 标记</summary>
+    private static readonly Dictionary<string, HashSet<string>> StandardFiveStarByGame = new(StringComparer.OrdinalIgnoreCase)
     {
-        "迪卢克", "莫娜", "七七", "刻晴", "提纳里", "迪希雅", "梦见月瑞希",
-        "天空之刃", "天空之脊", "天空之翼", "天空之卷", "天空之傲",
-        "风鹰剑", "阿莫斯之弓", "四风原典", "和璞鸢", "狼的末路",
+        ["genshin"] = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "迪卢克", "莫娜", "七七", "刻晴", "提纳里", "迪希雅", "梦见月瑞希",
+            "天空之刃", "天空之脊", "天空之翼", "天空之卷", "天空之傲",
+            "风鹰剑", "阿莫斯之弓", "四风原典", "和璞鸢", "狼的末路",
+        },
+        ["zzz"] = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "冯·莱卡恩", "丽娜", "猫宫又奈", "11号", "格莉丝", "珂蕾妲", "安比", "妮可", "比利", "安东",
+            "本·比格", "苍角", "露西", "派派", "可琳", "赛斯", "狛野真斗", "潘引壶",
+            "硫磺石", "燃狱齿轮", "拘缚者", "嵌合编译器", "啜泣摇篮", "深海访客", "钢铁肉垫", "防爆者VI型",
+            "加农转子", "人为刀俎", "左转轮子", "双生泣星", "触电唇彩", "雨林饕客", "贵重骨核", "好斗的阿炮",
+            "含羞恶面", "街头巨星", "星徽引擎", "家政员", "仿制星徽引擎", "旋钻机-赤轴", "德玛拉电池II型",
+            "聚宝箱", "轰鸣座驾", "时光切片", "逍遥游球", "兔能环", "比格气缸", "春日融融", "正版变身器",
+        },
+        ["starrail"] = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "彦卿", "姬子", "瓦尔特", "克拉拉", "白露", "杰帕德", "布洛妮娅",
+            "三月七", "丹恒", "艾丝妲", "希露瓦", "娜塔莎", "桑博", "佩拉", "停云", "青雀", "寒鸦", "驭空",
+            "素裳", "玲可", "桂乃芬", "加拉赫", "雪衣", "米沙",
+            "如泥酣眠", "银河铁道之夜", "以世界之名", "无可取代的东西", "时节不居", "制胜的瞬间", "但战斗还未结束",
+        },
+        ["bh3"] = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "空之律者", "理之律者", "炽翎", "白夜执事", "影骑士·月轮", "失落迷迭", "朔夜观星", "识之律者",
+            "薪炎之律者", "雷之律者", "粉色妖精小姐", "辉骑士·月魄", "极地战刃", "月下初拥", "山吹", "圣女祈祷",
+            "影舞冲击", "血色玫瑰", "幻海梦蝶", "女武神·游侠", "女武神·强袭", "白练", "绯红", "深红",
+            "空无之钥", "2nd圣遗物", "索尔之锤", "超电磁手炮", "雷刀·鬼角", "幽色咏叹调", "灵刀·樱吹雪",
+            "妖刀·赤染樱", "磁暴·斩", "3rd圣遗物", "虚无之刃", "提尔的断腕", "火刀·真田", "5th圣遗物",
+            "鲜血之舞", "犹大的誓约", "11th圣遗物", "仿犹大·血之拥抱", "永暮双狼", "断光之努亚达", "残火之鸢",
+        },
     };
 
-    /// <summary>限定角色 / 限定武器池里，非常驻的 5★ 即为当期 UP</summary>
+    /// <summary>记录该池是否为限定角色 / 武器池（只有限定池才标 UP）</summary>
+    private static bool IsLimitedPool(string gameKey, string pool) => gameKey switch
+    {
+        "genshin" => pool is "301" or "400" or "302",
+        "starrail" => pool is "11" or "12" or "21" or "22",
+        "zzz" => pool is "2" or "3" or "102" or "103",
+        "bh3" => pool is "2" or "3" or "4",
+        _ => false,
+    };
+
+    /// <summary>限定角色 / 限定武器池里，不在常驻名单中的 4★ / 5★ 即为当期 UP（3★ 永不标记）。</summary>
     private bool IsUpFiveStar(GachaItem item)
     {
         if (_beyondMode) return false;
-        if (_gameKey != "genshin") return false;
-        if (item.RankType != "5") return false;
-        var pool = item.GachaType ?? "";
-        if (pool is not ("301" or "400" or "302")) return false;
-        return !StandardFiveStar.Contains(item.Name.Trim());
+        if (!StandardFiveStarByGame.TryGetValue(_gameKey, out var standard)) return false;
+        if (!IsLimitedPool(_gameKey, item.GachaType ?? "")) return false;
+        if (item.RankType == "5") return !standard.Contains(item.Name.Trim());
+        // 原神沿用原有规则，只标记限定 5★；其余三款游戏同时标记名单外的 4★。
+        return _gameKey != "genshin" && item.RankType == "4" && !standard.Contains(item.Name.Trim());
     }
 
     private Border BuildRow(RowVm row)
@@ -1129,17 +1186,35 @@ public partial class GachaPage : UserControl
 
         var stack = new StackPanel();
         stack.Children.Add(g);
-        stack.Children.Add(BuildPityBar(row.Pity));
+        stack.Children.Add(BuildPityBar(row.Pity, rank, row.Item.GachaType));
         return new Border { Child = stack, Background = Brushes.Transparent };
     }
 
-    /// <summary>每行数据下的保底进度条：0-70 绿色，71-90 红色（大于 90 视为日志缺口，按满格红处理）</summary>
-    private FrameworkElement BuildPityBar(int pity)
+    /// <summary>每行数据下的保底进度条：普通 5★ 0-90（0-70 绿、71-90 红）；武器活动祈愿 5★ 0-80（0-65 绿、66-80 红）；4★/3★ 0-10（0-7 绿、8-10 红）；千星奇域 0-90（0-70 绿、71-90 红）</summary>
+    private FrameworkElement BuildPityBar(int pity, string rank, string? gachaType = null)
     {
-        var value = Math.Clamp(pity, 0, 90);
+        int max, greenMax;
+        if (_beyondMode)
+        {
+            // 千星奇域常驻颂愿：3★ 与 4★ 都按 0-90 展示，0-70 绿、71-90 红。
+            max = 90;
+            greenMax = 70;
+        }
+        else if (rank == "5" && _gameKey == "genshin" && gachaType == "302")
+        {
+            // 原神武器活动祈愿 5★：80 抽保底，0-65 绿、66-80 红。
+            max = 80;
+            greenMax = 65;
+        }
+        else
+        {
+            max = rank == "5" ? 90 : 10;
+            greenMax = rank == "5" ? 70 : 7;
+        }
+        var value = Math.Clamp(pity, 0, max);
         var barGrid = new Grid { Height = 3, Margin = new Thickness(8, 0, 8, 7) };
         barGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(value, GridUnitType.Star) });
-        barGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(90 - value, GridUnitType.Star) });
+        barGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(max - value, GridUnitType.Star) });
 
         var track = new Border
         {
@@ -1153,11 +1228,11 @@ public partial class GachaPage : UserControl
         var fill = new Border
         {
             CornerRadius = new CornerRadius(1.5),
-            Background = Brush(value <= 70 ? "#3F9B6B" : "#C0453F"),
+            Background = Brush(value <= greenMax ? "#3F9B6B" : "#C0453F"),
         };
         barGrid.Children.Add(fill);
 
-        barGrid.ToolTip = $"保底进度 {pity}/90";
+        barGrid.ToolTip = $"保底进度 {pity}/{max}";
         return barGrid;
     }
 
@@ -1354,7 +1429,7 @@ public partial class GachaPage : UserControl
         var uid = SelectedUid;
         if (uid == null)
         {
-            var uids = GachaStore.GetUids(_gameKey);
+            var uids = GachaStore.GetUids(StoreKey);
             if (uids.Count != 1)
             {
                 SetStatus("导出前请先在右上角选择一个具体 UID");
@@ -1365,7 +1440,7 @@ public partial class GachaPage : UserControl
         var dlg = new Microsoft.Win32.SaveFileDialog
         {
             Title = "导出抽卡记录",
-            FileName = $"mi-Nest_{_gameKey}_{uid}_{kind.ToUpperInvariant()}",
+            FileName = $"MikoNest_{_gameKey}_{uid}_{kind.ToUpperInvariant()}",
             Filter = kind switch
             {
                 "uigf" => "UIGF 文件 (*.json)|*.json",
@@ -1398,7 +1473,7 @@ public partial class GachaPage : UserControl
             SetStatus("清空前请先选择一个具体 UID");
             return;
         }
-        if (MessageBox.Show($"确定清空 UID {uid} 的本地抽卡记录？此操作不可恢复。", "mi-Nest",
+        if (MessageBox.Show($"确定清空 UID {uid} 的本地抽卡记录？此操作不可恢复。", "MikoNest",
                 MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK) return;
         GachaStore.Clear(uid, StoreKey);
         RefreshAll();

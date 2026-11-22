@@ -10,6 +10,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using MiNest.Models;
 using MiNest.Services;
+using MiNest.Windows;
 
 namespace MiNest.Pages;
 
@@ -326,6 +327,22 @@ public partial class TaskPage : UserControl
         {
             var res = await SignService.BbsCheckInAsync(acc.Cookie);
             foreach (var line in res.Log) Log($"[米游币任务]{line.Text}", line.Level);
+            if (!res.Ok && res.Retcode == 1034)
+            {
+                Log("[米游币任务]打卡触发人机验证，正在打开官方验证页…", "WARN");
+                var label = string.IsNullOrEmpty(acc.Uid) ? acc.DisplayName : $"UID {acc.Uid}";
+                if (AskVerifyBbs(acc.Cookie, label))
+                {
+                    Log("[米游币任务]验证已完成，正在重试打卡…");
+                    await Task.Delay(400);
+                    var retry = await SignService.BbsCheckInAsync(acc.Cookie);
+                    foreach (var line in retry.Log) Log($"[米游币任务]{line.Text}", line.Level);
+                }
+                else
+                {
+                    Log("[米游币任务]已取消人机验证，继续执行其他任务", "WARN");
+                }
+            }
         }
 
         // 浏览 / 点赞 / 分享类任务（任务未完成时才执行）
@@ -386,14 +403,60 @@ public partial class TaskPage : UserControl
                 row.StateKnown = true;
                 SetRoleStatus(row, true, "已签到");
             }
-            else if (res.Retcode == 1034)
+            else if (res.Retcode == 1034 || res.Message.Contains("风险"))
             {
-                SetRoleStatus(row, null, "需手动签到");
+                // 触发风控：把官方验证页嵌进软件，让玩家自己过验证码，再自动重试
+                SetRoleStatus(row, null, "需要人机验证");
+                Log($"[签到任务]{row.Game.Name}-{SignService.RegionLabel(row.Role)}-{row.Role.Uid} 触发人机验证，正在打开官方验证页…", "WARN");
+
+                var label = string.IsNullOrEmpty(acc.Uid) ? acc.DisplayName : $"UID {acc.Uid}";
+                var passed = AskVerify(row.Game, acc.Cookie, label);
+                if (passed)
+                {
+                    Log("[签到任务]验证已完成，正在重试签到…");
+                    await Task.Delay(400);
+                    var retry = await SignService.SignRoleAsync(acc.Cookie, row.Game, row.Role);
+                    foreach (var line in retry.Log) Log($"[签到任务]{line.Text}", line.Level);
+                    if (retry.Ok)
+                    {
+                        row.Signed = true;
+                        row.StateKnown = true;
+                        SetRoleStatus(row, true, "已签到（验证后）");
+                    }
+                    else
+                    {
+                        SetRoleStatus(row, null, "验证后仍未成功");
+                    }
+                }
+                else
+                {
+                    SetRoleStatus(row, null, "已取消验证");
+                    Log("[签到任务]已取消人机验证，剩余角色继续执行", "WARN");
+                }
             }
             await Task.Delay(600);
         }
         Log("[签到任务]签到任务执行完毕");
         LogSeparator("签到任务", false);
+    }
+
+    /// <summary>打开内嵌官方页面的安全验证窗口，返回玩家是否点「我已完成验证」。</summary>
+    private bool AskVerify(SignService.GameCheckin game, string cookie, string label)
+    {
+        var win = new SignVerifyWindow(game, cookie, label);
+        var owner = Window.GetWindow(this);
+        if (owner != null && !ReferenceEquals(owner, win)) win.Owner = owner;
+        return win.ShowDialog() == true;
+    }
+
+    /// <summary>米游社社区打卡的验证窗口（官方打卡页）。</summary>
+    private bool AskVerifyBbs(string cookie, string label)
+    {
+        var win = new SignVerifyWindow(SignVerifyWindow.BuildBbsUrl(), cookie, label,
+            "本次社区打卡需要人机验证：请在下方官方页面完成验证并点击「打卡」，完成后回到这里点「我已完成验证」。");
+        var owner = Window.GetWindow(this);
+        if (owner != null) win.Owner = owner;
+        return win.ShowDialog() == true;
     }
 
     // ==================== 一键执行 ====================

@@ -67,6 +67,8 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _gameWatchTimer;
     private readonly HashSet<string> _runningGames = new();
     private bool _forceExit;
+    private Thread? _showThread;
+    private volatile bool _showThreadStop;
 
     /// <summary>隐藏启动参数 --screenshots=目录：自动导出全部页面截图后退出（用于 README 配图）</summary>
     private string? _screenshotDir;
@@ -113,6 +115,7 @@ public partial class MainWindow : Window
         UpdateGameWatch();
         ApplyCloseBehavior();
         Closing += MainWindow_Closing;
+        StartShowListener();
 
         // 网页按钮提示随语言设置
         BtnBack.ToolTip = LocalizationService.Get("web_back");
@@ -262,12 +265,12 @@ public partial class MainWindow : Window
                 Icon = (Environment.ProcessPath is string exePath
                     ? System.Drawing.Icon.ExtractAssociatedIcon(exePath)
                     : null) ?? System.Drawing.SystemIcons.Application,
-                Text = "mi-Nest",
+                Text = "MikoNest",
                 Visible = true,
             };
             _trayIcon.DoubleClick += (_, _) => RestoreFromTray();
             _trayIcon.ContextMenuStrip = new WinForms.ContextMenuStrip();
-            _trayIcon.ContextMenuStrip.Items.Add("打开 mi-Nest", null, (_, _) => RestoreFromTray());
+            _trayIcon.ContextMenuStrip.Items.Add("打开 MikoNest", null, (_, _) => RestoreFromTray());
             _trayIcon.ContextMenuStrip.Items.Add("退出启动器", null, (_, _) => ShutdownApp());
         }
         catch { _trayIcon = null; }
@@ -289,14 +292,63 @@ public partial class MainWindow : Window
     {
         try
         {
-            Show();
+            // 先恢复任务栏与窗口状态，再 Show：顺序反了会导致整页黑屏
             ShowInTaskbar = true;
             if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+            Show();
+            Visibility = Visibility.Visible;
             Activate();
+            Focus();
             Topmost = true;
             Topmost = false;
+
+            // 托盘隐藏后 DirectX 表面可能已失效，强制重新布局与绘制
+            UpdateLayout();
+            InvalidateVisual();
+            PageHost?.InvalidateVisual();
+            WebHost?.InvalidateVisual();
+
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                UpdateLayout();
+                InvalidateVisual();
+                PageHost?.InvalidateVisual();
+                WebHost?.InvalidateVisual();
+            }), DispatcherPriority.Render);
         }
         catch { /* 忽略 */ }
+    }
+
+    /// <summary>监听「第二次启动」信号：由主实例自己走 WPF 的 Show 流程恢复窗口</summary>
+    private void StartShowListener()
+    {
+        var ev = App.ShowEvent;
+        if (ev == null) return;
+
+        _showThread = new Thread(() =>
+        {
+            while (!_showThreadStop)
+            {
+                try
+                {
+                    if (!ev.WaitOne(500)) continue;
+                }
+                catch
+                {
+                    return;
+                }
+                if (_showThreadStop) return;
+                Dispatcher.BeginInvoke(new Action(RestoreFromTray));
+            }
+        })
+        { IsBackground = true, Name = "MikoNest-ShowListener" };
+        _showThread.Start();
+
+        Closed += (_, _) =>
+        {
+            _showThreadStop = true;
+            try { ev.Set(); } catch { }
+        };
     }
 
     /// <summary>托盘菜单「退出启动器」：强制结束进程</summary>
@@ -450,7 +502,7 @@ public partial class MainWindow : Window
         };
         SidebarBorder.BeginAnimation(WidthProperty, anim);
 
-        TxtSidebarName.Visibility = _navCompact ? Visibility.Collapsed : Visibility.Visible;
+        ImgSidebarWordmark.Visibility = _navCompact ? Visibility.Collapsed : Visibility.Visible;
         TxtSidebarTag.Visibility = _navCompact ? Visibility.Collapsed : Visibility.Visible;
         NavHistoryBorder.Visibility = _navCompact ? Visibility.Collapsed : Visibility.Visible;
         NavDivider.Visibility = _navCompact ? Visibility.Collapsed : Visibility.Visible;
@@ -553,7 +605,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(this,
                 $"WebView2 初始化失败：{ex.Message}\n\n请确认已安装 WebView2 Runtime（一般随 Edge 自动安装）。",
-                "mi-Nest", MessageBoxButton.OK, MessageBoxImage.Error);
+                "MikoNest", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -613,11 +665,11 @@ public partial class MainWindow : Window
                 enc.Save(fs);
             }
 
-            MessageBox.Show($"页面截图已导出到：\n{dir}", "mi-Nest", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show($"页面截图已导出到：\n{dir}", "MikoNest", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"截图导出失败：{ex.Message}", "mi-Nest", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show($"截图导出失败：{ex.Message}", "MikoNest", MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally
         {
@@ -678,8 +730,8 @@ public partial class MainWindow : Window
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "TeyvatGuide"),
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "TeyvatGuide"),
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "TeyvatGuide"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "mi-Nest", "tools", "TeyvatGuidePortable", "PFiles", "TeyvatGuide"),
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "mi-Nest", "tools", "TeyvatGuide"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MikoNest", "tools", "TeyvatGuidePortable", "PFiles", "TeyvatGuide"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MikoNest", "tools", "TeyvatGuide"),
         };
         foreach (var root in roots)
         {
@@ -694,8 +746,8 @@ public partial class MainWindow : Window
         var exe = FindTeyvatGuideExe();
         if (exe == null)
         {
-            MessageBox.Show("尚未安装 TeyvatGuide（提瓦特指南）。\n\n可前往 GitHub 下载安装：\nhttps://github.com/BTMuli/TeyvatGuide/releases\n\n安装后重启 mi-Nest 即可通过左侧项目栏打开。",
-                "mi-Nest", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show("尚未安装 TeyvatGuide（提瓦特指南）。\n\n可前往 GitHub 下载安装：\nhttps://github.com/BTMuli/TeyvatGuide/releases\n\n安装后重启 MikoNest 即可通过左侧项目栏打开。",
+                "MikoNest", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
         try
@@ -704,7 +756,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"启动 TeyvatGuide 失败：{ex.Message}", "mi-Nest", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show($"启动 TeyvatGuide 失败：{ex.Message}", "MikoNest", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -713,7 +765,7 @@ public partial class MainWindow : Window
     {
         var roots = new[]
         {
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "mi-Nest", "tools", "Starward"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MikoNest", "tools", "Starward"),
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Starward"),
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Starward"),
         };
@@ -733,8 +785,8 @@ public partial class MainWindow : Window
         var exe = FindStarwardExe();
         if (exe == null)
         {
-            MessageBox.Show("尚未安装 Starward。\n\n可前往 GitHub 下载安装：\nhttps://github.com/Scighost/Starward/releases\n\n安装后重启 mi-Nest 即可通过左侧项目栏打开。",
-                "mi-Nest", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show("尚未安装 Starward。\n\n可前往 GitHub 下载安装：\nhttps://github.com/Scighost/Starward/releases\n\n安装后重启 MikoNest 即可通过左侧项目栏打开。",
+                "MikoNest", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
         try
@@ -743,7 +795,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"启动 Starward 失败：{ex.Message}", "mi-Nest", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show($"启动 Starward 失败：{ex.Message}", "MikoNest", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -789,6 +841,7 @@ public partial class MainWindow : Window
             }
 
             WebHost.Visibility = Visibility.Collapsed;
+            PageHost.Visibility = Visibility.Visible;
 
             if (!_nativePages.TryGetValue(key, out var page))
             {
@@ -831,6 +884,10 @@ public partial class MainWindow : Window
 
     private void ShowWeb(string url)
     {
+        // 启动页本身也是 WebView2（独立 HWND）。若不卸载/隐藏 PageHost，
+        // 旧 WebView2 的 HWND 会盖在新 WebView2 上方，表现为“点社区没反应、仍停在启动页”。
+        PageHost.Visibility = Visibility.Collapsed;
+        PageHost.Content = null;
         WebHost.Visibility = Visibility.Visible;
         if (WebView.CoreWebView2 != null)
             WebView.CoreWebView2.Navigate(url);

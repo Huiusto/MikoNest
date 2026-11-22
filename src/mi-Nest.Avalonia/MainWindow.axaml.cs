@@ -27,6 +27,7 @@ public partial class MainWindow : Window
 
     private readonly Dictionary<string, Control> _pages = new();
     private readonly Dictionary<string, Button> _navButtons = new();
+    private readonly Dictionary<string, Border> _navGlyphs = new();
     private bool _collapsed;
     private string _current = "launch";
 
@@ -37,6 +38,8 @@ public partial class MainWindow : Window
         BtnBrand.Click += (_, _) => ToggleSidebar();
 
         BuildNav();
+        _navGlyphs["account"] = NavGlyphAccount;
+        _navGlyphs["settings"] = NavGlyphSettings;
         ShowPage(Environment.GetEnvironmentVariable("MI_NEST_START") is { Length: > 0 } start &&
                  Items.Any(i => i.Key == start) ? start : "launch");
 
@@ -66,16 +69,18 @@ public partial class MainWindow : Window
             {
                 Text = item.Glyph,
                 FontSize = 13,
-                Width = 18,
+                HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
             };
+            glyph.Classes.Add("navGlyphText");
+            var tile = new Border { Child = glyph, Classes = { "navGlyph" } };
 
             var stack = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
-                Spacing = 8,
+                Spacing = 10,
             };
-            stack.Children.Add(glyph);
+            stack.Children.Add(tile);
             stack.Children.Add(label);
 
             var btn = new Button
@@ -86,6 +91,7 @@ public partial class MainWindow : Window
             };
             btn.Click += (_, _) => ShowPage(item.Key);
             _navButtons[item.Key] = btn;
+            _navGlyphs[item.Key] = tile;
             NavPanel.Children.Add(btn);
         }
     }
@@ -100,7 +106,16 @@ public partial class MainWindow : Window
         _current = key;
 
         foreach (var (k, btn) in _navButtons)
-            btn.Classes.Set("active", k == key);
+        {
+            var active = k == key;
+            btn.Classes.Set("active", active);
+            if (_navGlyphs.TryGetValue(k, out var tile))
+            {
+                tile.Classes.Set("active", active);
+                if (tile.Child is TextBlock glyph)
+                    glyph.Classes.Set("active", active);
+            }
+        }
         BtnAccount.Classes.Set("active", key == "account");
         BtnSettings.Classes.Set("active", key == "settings");
 

@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
         xmlns:svc="clr-namespace:MiNest.Services"
-        Title="mi-Nest"
+        Title="MikoNest"
         Icon="Assets/logo.ico"
         Width="1300" Height="700" MinWidth="1000" MinHeight="660"
         WindowStartupLocation="CenterScreen"
@@ -74,9 +74,9 @@
                                        Stretch="Uniform"/>
                             </Border>
                         </Grid>
-                        <TextBlock x:Name="TxtSidebarName" Text="mi-Nest" FontSize="14" FontWeight="Bold"
-                                   Foreground="{DynamicResource SidebarFg}"
-                                   HorizontalAlignment="Center" Margin="0,10,0,0"/>
+                        <Image x:Name="ImgSidebarWordmark" Source="Assets/wordmark.png" Width="76"
+                               Margin="0,9,0,0" HorizontalAlignment="Center" Stretch="Uniform"
+                               RenderOptions.BitmapScalingMode="HighQuality"/>
                         <TextBlock x:Name="TxtSidebarTag" Text="MIHOYO LAUNCHER" FontSize="8.5"
                                    Foreground="{DynamicResource SidebarDim}"
                                    HorizontalAlignment="Center" Margin="0,3,0,0"

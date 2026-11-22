@@ -28,7 +28,7 @@ public static class UigfService
         public string Version { get; set; } = "v4.0";
         public string Uid { get; set; } = "";
         public string Lang { get; set; } = "zh-cn";
-        public string ExportApp { get; set; } = "mi-Nest";
+        public string ExportApp { get; set; } = "MikoNest";
         public string ExportAppVersion { get; set; } = "1.0.0";
         public long ExportTimestamp { get; set; } = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         public List<GachaItem> Items { get; set; } = new();
