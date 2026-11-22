@@ -27,12 +27,12 @@
 
   <!-- 复用 WPF 版里已经与平台无关的业务层（设置、抽卡库、官方壁纸、本地化） -->
   <ItemGroup>
-    <Compile Include="..\mi-Nest\Models.cs" Link="Shared\Models.cs" />
-    <Compile Include="..\mi-Nest\AppPaths.cs" Link="Shared\AppPaths.cs" />
-    <Compile Include="..\mi-Nest\Services\SettingsService.cs" Link="Shared\Services\SettingsService.cs" />
-    <Compile Include="..\mi-Nest\Services\GachaStore.cs" Link="Shared\Services\GachaStore.cs" />
-    <Compile Include="..\mi-Nest\Services\LauncherBackgroundService.cs" Link="Shared\Services\LauncherBackgroundService.cs" />
-    <Compile Include="..\mi-Nest\Services\UpdateService.cs" Link="Shared\Services\UpdateService.cs" />
+    <Compile Include="..\MikoNest\Models.cs" Link="Shared\Models.cs" />
+    <Compile Include="..\MikoNest\AppPaths.cs" Link="Shared\AppPaths.cs" />
+    <Compile Include="..\MikoNest\Services\SettingsService.cs" Link="Shared\Services\SettingsService.cs" />
+    <Compile Include="..\MikoNest\Services\GachaStore.cs" Link="Shared\Services\GachaStore.cs" />
+    <Compile Include="..\MikoNest\Services\LauncherBackgroundService.cs" Link="Shared\Services\LauncherBackgroundService.cs" />
+    <Compile Include="..\MikoNest\Services\UpdateService.cs" Link="Shared\Services\UpdateService.cs" />
   </ItemGroup>
 </Project>
 

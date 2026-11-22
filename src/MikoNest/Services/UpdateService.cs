@@ -27,8 +27,8 @@ namespace MiNest.Services
     /// </summary>
     public static class UpdateService
     {
-        private const string RepoApi = "https://api.github.com/repos/Huiusto/mi-Nest";
-        public const string RepoReleases = "https://github.com/Huiusto/mi-Nest/releases";
+        private const string RepoApi = "https://api.github.com/repos/Huiusto/MikoNest";
+        public const string RepoReleases = "https://github.com/Huiusto/MikoNest/releases";
 
         /// <summary>GitHub API 镜像（国内网络可用），按顺序尝试</summary>
         private static readonly string[] ApiEndpoints =

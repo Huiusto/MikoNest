@@ -437,7 +437,7 @@ public class SettingsView : UserControl
                  {
                      ("Starward", "https://github.com/Scighost/Starward"),
                      ("TeyvatGuide", "https://github.com/DGP-Studio/Snap.Hutao"),
-                     ("本项目", "https://github.com/Huiusto/mi-Nest"),
+                     ("本项目", "https://github.com/Huiusto/MikoNest"),
                  })
         {
             var btn = new Button { Content = label, Classes = { "ghost" }, Height = 30, Padding = new Thickness(12, 0) };

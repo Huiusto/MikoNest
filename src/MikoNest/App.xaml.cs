@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -105,7 +105,7 @@ public partial class App : Application
                     {
                         Version = "0.1.33",
                         ReleasePage = MiNest.Services.UpdateService.RepoReleases,
-                        AssetUrl = "https://github.com/Huiusto/mi-Nest/releases/download/v0.1.33/MikoNest-Setup-0.1.33.exe",
+                        AssetUrl = "https://github.com/Huiusto/MikoNest/releases/download/v0.1.33/MikoNest-Setup-0.1.33.exe",
                         AssetName = "MikoNest-Setup-0.1.33.exe",
                         AssetSize = 82400000,
                         ReleaseNotes = "## 更新内容\n\n- 启动页「获取游戏」改为「安装游戏」。\n- 打开软件自动检查更新，发现新版本立即弹出更新窗口。\n- 更新窗口增加本次版本更新日志，点击「开始更新」1 秒后自动最小化并在后台下载安装。\n- 设置页「界面配色」与「语言切换」「应用维护」卡片高度对齐。",

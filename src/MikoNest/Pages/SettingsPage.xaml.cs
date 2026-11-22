@@ -526,7 +526,7 @@ public partial class SettingsPage : UserControl
     private void BtnRepoHome_Click(object sender, RoutedEventArgs e)
     {
         if (_main == null) return;
-        _main.OpenInApp("https://github.com/Huiusto/mi-Nest");
+        _main.OpenInApp("https://github.com/Huiusto/MikoNest");
     }
 
     private bool _checkingUpdate;

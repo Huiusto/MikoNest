@@ -1,11 +1,11 @@
 # MikoNest · Avalonia 跨平台 UI 与 macOS 版
 
-本目录说明 `src/mi-Nest.Avalonia` 的定位、构建方式与当前完成度。
+本目录说明 `src/MikoNest.Avalonia` 的定位、构建方式与当前完成度。
 
 ## 结构
 
-- `src/mi-Nest`：原有 WPF 桌面版（Windows），功能完整，继续作为主版本维护。
-- `src/mi-Nest.Avalonia`：Avalonia 11 重写的 UI 层，同一套业务服务（设置、抽卡本地库、官方壁纸同步、路径规则）被两个前端共用。
+- `src/MikoNest`：原有 WPF 桌面版（Windows），功能完整，继续作为主版本维护。
+- `src/MikoNest.Avalonia`：Avalonia 11 重写的 UI 层，同一套业务服务（设置、抽卡本地库、官方壁纸同步、路径规则）被两个前端共用。
 - `dist/`：交叉发布产物，含 macOS `.app` 压缩包。
 
 ## 已实现（Avalonia 版）
@@ -28,9 +28,9 @@
 
 ```powershell
 $env:DOTNET_ROOT="C:\Users\<you>\.dotnet9"
-dotnet build src/mi-Nest.Avalonia/MiNest.Avalonia.csproj -c Release
-dotnet publish src/mi-Nest.Avalonia/MiNest.Avalonia.csproj -c Release -r osx-arm64 --self-contained -o dist/osx-arm64
-dotnet publish src/mi-Nest.Avalonia/MiNest.Avalonia.csproj -c Release -r osx-x64  --self-contained -o dist/osx-x64
+dotnet build src/MikoNest.Avalonia/MikoNest.Avalonia.csproj -c Release
+dotnet publish src/MikoNest.Avalonia/MikoNest.Avalonia.csproj -c Release -r osx-arm64 --self-contained -o dist/osx-arm64
+dotnet publish src/MikoNest.Avalonia/MikoNest.Avalonia.csproj -c Release -r osx-x64  --self-contained -o dist/osx-x64
 ```
 
 `.app` 目录结构：

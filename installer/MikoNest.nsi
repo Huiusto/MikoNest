@@ -6,8 +6,8 @@ Unicode true
 !include "WinMessages.nsh"
 
 ; ---------------- 编译期路径 ----------------
-!define ROOT "C:\Users\35847\Doubao\chats\2026-10-13\new-chat\mi-Nest"
-!define ICON_PATH "${ROOT}\src\mi-Nest\Assets\logo.ico"
+!define ROOT "C:\Users\35847\Doubao\chats\2026-10-13\new-chat\MikoNest"
+!define ICON_PATH "${ROOT}\src\MikoNest\Assets\logo.ico"
 !define PUBLISH_DIR "${ROOT}\publish"
 !define ART_DIR "${ROOT}\installer\assets"
 
@@ -47,7 +47,7 @@ UninstallIcon "${ICON_PATH}"
 !define MUI_FINISHPAGE_RUN "$INSTDIR\MikoNest.exe"
 !define MUI_FINISHPAGE_RUN_TEXT "立即运行 MikoNest"
 !define MUI_FINISHPAGE_LINK "访问项目主页（GitHub）"
-!define MUI_FINISHPAGE_LINK_LOCATION "https://github.com/Huiusto/mi-Nest"
+!define MUI_FINISHPAGE_LINK_LOCATION "https://github.com/Huiusto/MikoNest"
 
 ; ---------------- 向导页 ----------------
 Page custom WelcomeCreate WelcomeLeave

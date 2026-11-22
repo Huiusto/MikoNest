@@ -13,7 +13,7 @@ MikoNest 是一个**全部页面都在软件内部展示**的桌面应用：把�
 
 ## 下载
 
-前往 [Releases](https://github.com/Huiusto/mi-Nest/releases/latest) 获取安装包：
+前往 [Releases](https://github.com/Huiusto/MikoNest/releases/latest) 获取安装包：
 
 | 平台 | 文件 |
 | --- | --- |
@@ -110,13 +110,13 @@ TeyvatGuide 同款实用脚本：米游币每日任务（打卡 / 绑定角色 /
 ### 方式一：Visual Studio 2022
 
 1. 安装 **.NET 9 SDK** 与 **Visual Studio 2022**（勾选“.NET 桌面开发”工作负载）。
-2. 打开 `mi-Nest.sln`，还原 NuGet 包（需要联网），直接 F5 运行。
+2. 打开 `MikoNest.sln`，还原 NuGet 包（需要联网），直接 F5 运行。
 
 ### 方式二：命令行
 
 ```bash
-dotnet build mi-Nest.sln -c Debug
-dotnet run --project src/mi-Nest
+dotnet build MikoNest.sln -c Debug
+dotnet run --project src/MikoNest
 ```
 
 > 依赖 WebView2 Runtime（Windows 10/11 一般随 Edge 自动安装；也可到 Microsoft 官网单独安装 Evergreen 运行时）。
