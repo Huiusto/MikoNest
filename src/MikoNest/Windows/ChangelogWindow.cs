@@ -13,6 +13,11 @@ public sealed class ChangelogWindow : Window
 
     private static readonly Entry[] Entries =
     {
+        new("0.1.30", "2026-11-25", new[]
+        {
+            "「任务/签到」页排版对齐参考图：账号状态改为彩色圆点 + 状态文字，已登录显示绿色圆点。(๑•̀ㅂ•́)و✧",
+            "登录失效时，米游币任务与签到任务卡片统一显示橙色「登录状态已失效，请到「账号」页重新登录」提示，不再直接弹出接口报错。(￣▽￣)ノ",
+        }),
         new("0.1.28", "2026-11-22", new[]
         {
             "软件由原名 mi-Nest 正式更名为 MikoNest；软件图标更换为全新蓝白 Q 版形象，侧栏品牌字样更换为蔚蓝圆润字标。(๑•̀ㅂ•́)و✧",
@@ -143,7 +148,7 @@ public sealed class ChangelogWindow : Window
         });
         header.Children.Add(new TextBlock
         {
-            Text = "MikoNest 从首个公开版本到 0.1.28 的更新与修复记录",
+            Text = "MikoNest 从首个公开版本到 0.1.30 的更新与修复记录",
             FontSize = 12,
             Margin = new Thickness(0, 5, 0, 0),
             Foreground = (Brush)Application.Current.Resources["TextSecondary"],

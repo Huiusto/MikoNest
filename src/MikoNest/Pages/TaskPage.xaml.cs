@@ -31,6 +31,8 @@ public partial class TaskPage : UserControl
         public bool StateKnown;
     }
 
+    private const string ExpiredText = "登录状态已失效，请到「账号」页重新登录";
+
     private readonly MainWindow _main;
     private readonly ObservableCollection<SignLogEntry> _logs = new();
     private readonly List<RoleRow> _roleRows = new();
@@ -125,8 +127,7 @@ public partial class TaskPage : UserControl
         if (acc == null)
         {
             TxtUid.Text = "";
-            TxtAccountStatus.Foreground = BrushOf("TextSecondary");
-            TxtAccountStatus.Text = "● 未添加账号";
+            SetAccountStatus("未添加账号", "TextSecondary");
             BannerStoken.Visibility = Visibility.Visible;
             TxtAccountHint.Text = "请到「账号」页添加并登录账号（扫码 / 验证码 / Cookie），登录后即可一键完成签到与米游币任务。";
             return;
@@ -136,17 +137,23 @@ public partial class TaskPage : UserControl
         // stoken 是长期凭证，存在即视为已登录；cookie_token 缺失只影响部分接口，不再整体判“登录态不完整”
         if (!SignService.HasStoken(acc.Cookie))
         {
-            TxtAccountStatus.Foreground = BrushOf("Warning");
-            TxtAccountStatus.Text = "● 登录态不完整";
+            SetAccountStatus("登录态不完整", "Warning");
             BannerStoken.Visibility = Visibility.Visible;
             TxtAccountHint.Text = "⚠ 当前登录态缺少 stoken（签到与米游币任务必需）。请到「账号」页用「扫码登录 / Cookie 登录」重新登录。";
         }
         else
         {
-            TxtAccountStatus.Foreground = BrushOf("Success");
-            TxtAccountStatus.Text = "● 已登录";
+            SetAccountStatus("已登录", "Success");
             BannerStoken.Visibility = Visibility.Collapsed;
         }
+    }
+
+    private void SetAccountStatus(string text, string brushKey)
+    {
+        var brush = BrushOf(brushKey);
+        TxtAccountStatus.Foreground = brush;
+        TxtAccountStatus.Text = text;
+        StatusDot.Fill = brush;
     }
 
     private void CmbAccount_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -232,8 +239,17 @@ public partial class TaskPage : UserControl
         if (snap == null)
         {
             MissionPanel.Children.Clear();
-            MissionPanel.Children.Add(TipText(error ?? "刷新失败", loginExpired ? "Warning" : "Danger"));
-            Log($"[米游币任务]{(loginExpired ? "登录状态已失效" : error)}", "ERROR");
+            if (loginExpired)
+            {
+                TxtCoin.Text = "持有米游币：0";
+                MissionPanel.Children.Add(TipText(ExpiredText, "Warning"));
+                Log("[米游币任务]登录状态已失效", "ERROR");
+            }
+            else
+            {
+                MissionPanel.Children.Add(TipText(error ?? "刷新失败", "Danger"));
+                Log($"[米游币任务]{error}", "ERROR");
+            }
             return;
         }
 
@@ -270,8 +286,8 @@ public partial class TaskPage : UserControl
         if (version != _signVersion || !ReferenceEquals(acc, AccountService.Active)) return;
         if (result.Error != null)
         {
-            SignPanel.Children.Add(TipText(result.Error, result.LoginExpired ? "Warning" : "Danger"));
-            Log($"[签到任务]{result.Error}", "ERROR");
+            SignPanel.Children.Add(TipText(result.LoginExpired ? ExpiredText : result.Error, result.LoginExpired ? "Warning" : "Danger"));
+            Log($"[签到任务]{(result.LoginExpired ? "登录状态已失效" : result.Error)}", "ERROR");
             return;
         }
         if (result.Roles.Count == 0)

@@ -49,8 +49,12 @@
                         <TextBlock x:Name="TxtUid" FontSize="12" Margin="12,0,0,0" VerticalAlignment="Center"
                                    Foreground="{DynamicResource TextSecondary}"/>
                     </StackPanel>
-                    <TextBlock x:Name="TxtAccountStatus" HorizontalAlignment="Right" VerticalAlignment="Center"
-                               FontSize="12.5" FontWeight="SemiBold"/>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <Ellipse x:Name="StatusDot" Width="8" Height="8" Margin="0,0,6,0"
+                                 VerticalAlignment="Center" Fill="{DynamicResource TextSecondary}"/>
+                        <TextBlock x:Name="TxtAccountStatus" VerticalAlignment="Center"
+                                   FontSize="12.5" FontWeight="SemiBold"/>
+                    </StackPanel>
                 </Grid>
                 <Border x:Name="BannerStoken" Grid.Row="1" Margin="0,8,0,0"
                         Background="{DynamicResource AccentSoft}" CornerRadius="8" Padding="10,7"
