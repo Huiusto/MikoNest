@@ -13,6 +13,10 @@ public sealed class ChangelogWindow : Window
 
     private static readonly Entry[] Entries =
     {
+        new("0.1.31", "2026-11-25", new[]
+        {
+            "启动页「全部游戏」下拉在游戏名前显示对应角色头像图标：原神（派蒙）、崩坏3（琪亚娜）、崩坏：星穹铁道、绝区零（安比）。(＾▽＾)",
+        }),
         new("0.1.30", "2026-11-25", new[]
         {
             "「任务/签到」页排版对齐参考图：账号状态改为彩色圆点 + 状态文字，已登录显示绿色圆点。(๑•̀ㅂ•́)و✧",
@@ -148,7 +152,7 @@ public sealed class ChangelogWindow : Window
         });
         header.Children.Add(new TextBlock
         {
-            Text = "MikoNest 从首个公开版本到 0.1.30 的更新与修复记录",
+            Text = "MikoNest 从首个公开版本到 0.1.31 的更新与修复记录",
             FontSize = 12,
             Margin = new Thickness(0, 5, 0, 0),
             Foreground = (Brush)Application.Current.Resources["TextSecondary"],

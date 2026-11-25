@@ -43,6 +43,15 @@ public partial class LaunchPage : UserControl
     private bool _webReady;
     private readonly string _rootDir = AppPaths.DataDir;
 
+    /// <summary>启动页「全部游戏」下拉的游戏头像图标：key → 图标文件名（资源随页面复制到 WebView 数据目录）。</summary>
+    private static readonly Dictionary<string, string> LaunchIconFiles = new()
+    {
+        ["genshin"] = "icon_genshin.png",
+        ["bh3"] = "icon_bh3.png",
+        ["starrail"] = "icon_starrail.png",
+        ["zzz"] = "icon_zzz.png",
+    };
+
     /// <summary>启动页按钮区域显示的安装状态，进度变化不再经过独立窗口。</summary>
     private sealed class InstallUi
     {
@@ -147,6 +156,12 @@ public partial class LaunchPage : UserControl
             var target = Path.Combine(assetDir, name);
             if (!File.Exists(target)) CopyResource("Assets/" + name, target);
         }
+
+        // 启动页「全部游戏」下拉的角色头像图标，复制进 WebView 虚拟目录供页面引用
+        var iconDir = Path.Combine(assetDir, "icons");
+        Directory.CreateDirectory(iconDir);
+        foreach (var file in LaunchIconFiles.Values)
+            CopyResource("Assets/Launch/icons/" + file, Path.Combine(iconDir, file));
     }
 
     private static void CopyResource(string resourcePath, string targetPath)
@@ -211,6 +226,9 @@ public partial class LaunchPage : UserControl
             name = g.Name,
             located = IsLocated(g.Key),
             running = _runningGames.Contains(g.Key),
+            icon = LaunchIconFiles.TryGetValue(g.Key, out var iconFile)
+                ? ToUrl(Path.Combine(_rootDir, "launch", "assets", "icons", iconFile))
+                : null,
         }).ToList();
 
         // 自定义壁纸作为第一张排在左侧切换条里，与官方壁纸一起切换

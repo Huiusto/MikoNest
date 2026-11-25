@@ -125,7 +125,7 @@ dotnet run --project src/MikoNest
 
 - 米游币任务、签到、登录等调用的是**社区公开接口**，其中的 `DS 盐值`、`AppVersion`、`gid/forum_id` 等常量集中在 `Services/MiHoYoHttp.cs`、`SignService.cs` 中；米哈游官方可能随时调整，导致 `-1 / 1034 / -5003` 等返回码，届时按社区最新参数同步更新即可。
 - 抽卡 authkey 有效期约 24 小时，过期后需重新在游戏内打开一次抽卡记录页面。
-- 启动页背景来自官方启动器接口 `hyp-connect/api/getAllGameBasicInfo`（`launcher_id=jGHBHlcOq1`，国服），实现方式参考 Starward：按游戏 `biz`（hk4e/hkrpg/nap/bh3）取当前版本**全部**背景，图片立即缓存到 `%AppData%\MikoNest\bg`，`.webm` 动态视频在切换到该张壁纸时才按需下载。启动页整页由 WebView2 承载（Chromium 原生解码 VP9 WebM，不依赖系统解码器）：鼠标移到页面左边缘会浮现「‹ / › 切换、圆点跳转、保存壁纸、暂停 / 播放动态壁纸」的控制条，圆点数量与官方下发的背景数量一致；顶部「全部游戏」下拉可按住右侧 `⠿` 拖动调整四款游戏的显示顺序，顺序会保存到 `settings.json`。预下载 / 安装包信息来自 `hyp-connect/api/getGamePackages`。相关代码见 `Services/LauncherBackgroundService.cs`、`Assets/Launch/launch.html`。
+- 启动页背景来自官方启动器接口 `hyp-connect/api/getAllGameBasicInfo`（`launcher_id=jGHBHlcOq1`，国服），实现方式参考 Starward：按游戏 `biz`（hk4e/hkrpg/nap/bh3）取当前版本**全部**背景，图片立即缓存到 `%AppData%\MikoNest\bg`，`.webm` 动态视频在切换到该张壁纸时才按需下载。启动页整页由 WebView2 承载（Chromium 原生解码 VP9 WebM，不依赖系统解码器）：鼠标移到页面左边缘会浮现「‹ / › 切换、圆点跳转、保存壁纸、暂停 / 播放动态壁纸」的控制条，圆点数量与官方下发的背景数量一致；顶部「全部游戏」下拉在游戏名前显示对应角色头像图标，可按住右侧 `⠿` 拖动调整四款游戏的显示顺序，顺序会保存到 `settings.json`。预下载 / 安装包信息来自 `hyp-connect/api/getGamePackages`。相关代码见 `Services/LauncherBackgroundService.cs`、`Assets/Launch/launch.html`。
 - 验证码登录在官方要求图形验证码时可能不可用，请改用扫码或 Cookie 登录。
 
 ## 致谢（参考的开源项目）
@@ -141,7 +141,7 @@ MikoNest 的多个功能在交互与思路上参考了以下开源项目，实�
 同时感谢米哈游官方启动器公开的 `hyp-connect` 接口与社区维护的接口文档。
 ## 平台支持
 
-- **Windows 10/11（x64）**：主版本，WPF + WebView2 + .NET 9，自包含发布，无需安装 .NET 运行时。下载 `MikoNest-Setup-0.1.28.exe` 安装包即可。
+- **Windows 10/11（x64）**：主版本，WPF + WebView2 + .NET 9，自包含发布，无需安装 .NET 运行时。下载 `MikoNest-Setup-0.1.31.exe` 安装包即可。
 - **macOS 11+**：Avalonia 11 跨平台版，提供 Apple Silicon（arm64）与 Intel（x64）两个 `.app` 包，功能为启动页、抽卡统计、设置、账号 / 任务 / 米哈游相关入口。与 Windows 版共用 `settings.json`、`gacha_records.json` 结构。未做代码签名，首次运行需在终端执行 `xattr -cr MikoNest.app` 与 `chmod +x MikoNest.app/Contents/MacOS/MikoNest`，详见 [docs/AVALONIA-macOS.md](docs/AVALONIA-macOS.md)。
 - **跨平台版当前差异**：`.webm` 动态壁纸暂以静态封面呈现；游戏内抽卡缓存抓取、账号登录 / 签到、预下载进度仍由 Windows 版提供。
 

@@ -73,6 +73,8 @@
   .menu .item { display: flex; align-items: center; gap: 10px; padding: 9px 10px 9px 12px;
                 border-radius: 9px; cursor: pointer; transition: background .14s ease, opacity .14s ease; }
   .menu .item:hover { background: rgba(255,255,255,.1); }
+  .menu .item .gicon { flex: none; width: 30px; height: 30px; border-radius: 8px;
+                       object-fit: cover; box-shadow: 0 1px 4px rgba(0,0,0,.35); }
   .menu .item .meta { flex: 1; min-width: 0; }
   .menu .item .name { font-size: 13.5px; font-weight: 600; }
   .menu .item .sub { font-size: 10.5px; margin-top: 3px; }
@@ -474,7 +476,8 @@
       item.className = 'item';
       item.draggable = true;
       item.dataset.key = g.key;
-      item.innerHTML = `<div class="meta"><div class="name">${g.name}</div>
+      const iconHtml = g.icon ? `<img class="gicon" src="${g.icon}" alt="">` : '';
+      item.innerHTML = `${iconHtml}<div class="meta"><div class="name">${g.name}</div>
         <div class="sub ${g.located ? 'ok' : 'no'}">${g.located ? '● 已定位' : '○ 未定位'}${g.running ? ' · 运行中' : ''}</div></div>
         <span class="drag" title="按住拖动调整顺序">⠿</span>`;
       item.onclick = () => { menu.classList.remove('on'); send({ type: 'selectGame', key: g.key }); };
