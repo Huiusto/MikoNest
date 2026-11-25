@@ -138,8 +138,10 @@
 
   .bottom { display: flex; align-items: flex-end; justify-content: space-between; }
   .reserve { display: flex; align-items: center; gap: 10px; }
-  /* 开关隐藏：保留元素占位，其余按键位置不发生重排 */
+  /* 开关隐藏：保留元素占位，其余按键位置不发生重排（预约面板用） */
   .ui-hidden { visibility: hidden; pointer-events: none; }
+  /* 彻底移出布局：隐藏后相邻按钮向左补位（米哈云游按钮用） */
+  .ui-gone { display: none !important; }
   .reserve .title { font-size: 15px; font-weight: 600;
                     text-shadow: 0 1px 4px rgba(0,0,0,.6); margin-right: 4px; }
   .reserve .card {
@@ -601,8 +603,9 @@
     renderDots();
     applyBackground();
     $('saving').classList.toggle('on', !!state.preparing);
-    // 游戏设置里的显隐开关：false 才隐藏；保留占位（visibility），只隐藏目标入口，其他按键位置不动
-    $('btnMhyy').classList.toggle('ui-hidden', state.showMhyy === false);
+    // 游戏设置里的显隐开关：false 才隐藏。米哈云游按钮彻底移出布局，「全部游戏 / 当前游戏」向左补位；
+    // 预约面板保留占位（visibility），底部其余按键位置不重排。
+    $('btnMhyy').classList.toggle('ui-gone', state.showMhyy === false);
     document.querySelector('.reserve').classList.toggle('ui-hidden', state.showReserve === false);
   }
 

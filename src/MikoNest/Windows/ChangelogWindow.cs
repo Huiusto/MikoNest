@@ -13,6 +13,11 @@ public sealed class ChangelogWindow : Window
 
     private static readonly Entry[] Entries =
     {
+        new("0.1.39", "2026-11-25", new[]
+        {
+            "更新弹窗不再在点击「开始更新」后自动最小化：下载进度与安装提示保持在窗口内可见，出错时可直接在弹窗内重试。(＾▽＾)",
+            "启动页在游戏设置里关闭「米哈云游」后，「全部游戏 / 当前游戏」按钮向左补位，不再保留云游按钮的空位；预约游戏入口仍保持原有占位，底部按键位置不重排。(๑•̀ㅂ•́)و✧",
+        }),
         new("0.1.38", "2026-11-25", new[]
         {
             "修复换票响应嵌套 token 被当成 JSON 原文写入 Cookie 的问题：exchange / getTokenBySToken 返回的 token 无论是字符串还是 { token: \"...\" } 嵌套对象，都正确取到纯凭证；历史上被写坏的 cookie_token / ltoken 会在下次刷新时识别为无效并重新换票，不再带着无效凭证请求角色接口。(๑•̀ㅂ•́)و✧",
@@ -188,7 +193,7 @@ public sealed class ChangelogWindow : Window
         });
         header.Children.Add(new TextBlock
         {
-            Text = "MikoNest 从首个公开版本到 0.1.38 的更新与修复记录",
+            Text = "MikoNest 从首个公开版本到 0.1.39 的更新与修复记录",
             FontSize = 12,
             Margin = new Thickness(0, 5, 0, 0),
             Foreground = (Brush)Application.Current.Resources["TextSecondary"],

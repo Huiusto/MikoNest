@@ -377,14 +377,6 @@ namespace MiNest.Windows
             return text.Length > 5000 ? text.Substring(0, 5000) + "\n…" : text;
         }
 
-        /// <summary>开始更新 1 秒后把弹窗最小化，下载与安装继续在后台进行。</summary>
-        private async Task MinimizeAfterDelayAsync()
-        {
-            await Task.Delay(1000);
-            if (IsVisible && WindowState != WindowState.Minimized)
-                WindowState = WindowState.Minimized;
-        }
-
         private void RestoreAfterError()
         {
             if (WindowState == WindowState.Minimized)
@@ -404,7 +396,6 @@ namespace MiNest.Windows
             _bar.Visibility = Visibility.Visible;
             _status.Visibility = Visibility.Visible;
             UpdateProgressService.Report(0);
-            _ = MinimizeAfterDelayAsync();
 
             try
             {
