@@ -13,6 +13,10 @@ public sealed class ChangelogWindow : Window
 
     private static readonly Entry[] Entries =
     {
+        new("0.1.32", "2026-11-25", new[]
+        {
+            "修复「账号」页扫码登录与手机号短信登录均提示「Cookie 无效：登录状态失败」的问题：登录校验不再只依赖 cookie_token，新增 stoken 角色链路（getUserGameRolesByStoken）与 Action Ticket 身份兜底，扫码/短信拿到 stoken 即可完成登录建号。(๑•̀ㅂ•́)و✧",
+        }),
         new("0.1.31", "2026-11-25", new[]
         {
             "启动页「全部游戏」下拉在游戏名前显示对应角色头像图标：原神（派蒙）、崩坏3（琪亚娜）、崩坏：星穹铁道、绝区零（安比）。(＾▽＾)",
@@ -152,7 +156,7 @@ public sealed class ChangelogWindow : Window
         });
         header.Children.Add(new TextBlock
         {
-            Text = "MikoNest 从首个公开版本到 0.1.31 的更新与修复记录",
+            Text = "MikoNest 从首个公开版本到 0.1.32 的更新与修复记录",
             FontSize = 12,
             Margin = new Thickness(0, 5, 0, 0),
             Foreground = (Brush)Application.Current.Resources["TextSecondary"],

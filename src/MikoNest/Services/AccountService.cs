@@ -143,28 +143,67 @@ public static class AccountService
 
     // ---------- Cookie 校验 ----------
 
-    /// <summary>校验 Cookie 并取昵称/UID（现行可用端点 binding/getUserGameRolesByCookie，旧的 getUserFullInfo 已 404）</summary>
+    /// <summary>校验 Cookie 并取昵称/UID。
+    /// 优先 cookie_token 链路（getUserGameRolesByCookie）；cookie_token 缺失或该链路失效时回退
+    /// stoken 链路（getUserGameRolesByStoken，DS1/K2，client_type 2）——扫码/短信登录拿到的
+    /// stoken 长期有效，不必依赖易失效的 cookie_token。两条链路都失败才判定 Cookie 无效。</summary>
     public static async Task<(bool ok, string nickname, string uid, string message)> ValidateCookieAsync(string cookie)
     {
+        // 1) cookie_token 链路（getUserGameRolesByCookie）
         var api = await MiHoYoHttp.SendWithHeadersAsync("GET",
             "https://api-takumi.mihoyo.com/binding/api/getUserGameRolesByCookie?game_biz=hk4e_cn",
             null, BuildValidateHeaders(cookie));
         if (api.Retcode == 0 && api.Data != null)
         {
-            var nickname = "";
-            var uid = "";
-            if (api.Data.Value.TryGetProperty("list", out var list) &&
-                list.ValueKind == JsonValueKind.Array && list.GetArrayLength() > 0)
-            {
-                var first = list[0];
-                nickname = first.GetProp("nickname");
-                uid = first.GetProp("game_uid");
-            }
-            if (string.IsNullOrEmpty(nickname))
-                nickname = "米游社用户";
-            return (true, nickname, uid, "ok");
+            var (nickname, uid) = ReadFirstRole(api.Data.Value);
+            return (true, string.IsNullOrEmpty(nickname) ? "米游社用户" : nickname, uid, "ok");
         }
-        return (false, "", "", $"{api.Message}（{api.Retcode}）");
+        var lastError = $"{api.Message}（{api.Retcode}）";
+
+        // 2) stoken 链路回退：扫码/短信登录通常只带回 stoken，cookie_token 可能未换取成功
+        if (!string.IsNullOrEmpty(CookieGet(cookie, "stoken")))
+        {
+            var stCookie = SubCookie(cookie, "stoken", "stuid", "ltuid", "account_id", "mid");
+            var api2 = await MiHoYoHttp.SendWithHeadersAsync("GET",
+                "https://api-takumi.miyoushe.com/binding/api/getUserGameRolesByStoken",
+                null, BuildStokenValidateHeaders(stCookie));
+            if (api2.Retcode == 0 && api2.Data != null)
+            {
+                var (nickname2, uid2) = ReadFirstRole(api2.Data.Value);
+                return (true, string.IsNullOrEmpty(nickname2) ? "米游社用户" : nickname2, uid2, "ok");
+            }
+            lastError = $"{api2.Message}（{api2.Retcode}）";
+        }
+
+        // 3) stoken 身份兜底：getActionTicketBySToken 只验 stoken 本身，不依赖角色绑定与 cookie_token；
+        //    retcode=0 即 stoken 有效，可先建账号，角色由签到页 stoken 链路后续拉取。
+        var stoken3 = CookieGet(cookie, "stoken");
+        if (!string.IsNullOrEmpty(stoken3))
+        {
+            var aid3 = CookieGet(cookie, "account_id");
+            if (string.IsNullOrEmpty(aid3)) aid3 = CookieGet(cookie, "stuid");
+            if (string.IsNullOrEmpty(aid3)) aid3 = CookieGet(cookie, "ltuid");
+            var mid3 = CookieGet(cookie, "mid");
+            var at = await MiHoYoHttp.SendWithHeadersAsync("GET",
+                "https://api-takumi.mihoyo.com/auth/api/getActionTicketBySToken?action_type=game_role",
+                null, BuildPlainStokenHeaders(mid3, aid3, stoken3));
+            if (at.Retcode == 0)
+                return (true, "米游社用户", aid3, "ok");
+            lastError = $"{at.Message}（{at.Retcode}）";
+        }
+
+        return (false, "", "", lastError);
+    }
+
+    private static (string nickname, string uid) ReadFirstRole(JsonElement data)
+    {
+        if (data.TryGetProperty("list", out var list) &&
+            list.ValueKind == JsonValueKind.Array && list.GetArrayLength() > 0)
+        {
+            var first = list[0];
+            return (first.GetProp("nickname"), first.GetProp("game_uid"));
+        }
+        return ("", "");
     }
 
     /// <summary>takumi 校验接口请求头（带 Cookie，无需 DS）</summary>
@@ -179,6 +218,46 @@ public static class AccountService
             ["referer"] = "https://webstatic.mihoyo.com",
             ["cookie"] = cookie,
         };
+    }
+
+    /// <summary>stoken 链路校验请求头（对齐 SignService.BuildStokenHeader：client_type 2，DS1=K2 salt+t+r）</summary>
+    private static Dictionary<string, string> BuildStokenValidateHeaders(string stCookie)
+    {
+        return new Dictionary<string, string>
+        {
+            ["user-agent"] = MobileUa,
+            ["x-rpc-app_version"] = MiHoYoHttp.AppVersion,
+            ["x-rpc-client_type"] = "2",
+            ["x-requested-with"] = "com.mihoyo.hyperion",
+            ["referer"] = "https://app.mihoyo.com",
+            ["x-rpc-device_id"] = DeviceId,
+            ["x-rpc-device_fp"] = MiHoYoHttp.DeviceFp,
+            ["DS"] = MiHoYoHttp.GetDsType1(MiHoYoHttp.K2Salt),
+            ["cookie"] = stCookie,
+        };
+    }
+
+    private static string CookieGet(string cookie, string key)
+    {
+        if (string.IsNullOrEmpty(cookie)) return "";
+        foreach (var seg in cookie.Split(';'))
+        {
+            var s = seg.Trim();
+            var eq = s.IndexOf('=');
+            if (eq > 0 && s[..eq].Trim() == key) return s[(eq + 1)..].Trim();
+        }
+        return "";
+    }
+
+    private static string SubCookie(string cookie, params string[] keys)
+    {
+        var parts = new List<string>();
+        foreach (var k in keys)
+        {
+            var v = CookieGet(cookie, k);
+            if (!string.IsNullOrEmpty(v)) parts.Add($"{k}={v}");
+        }
+        return string.Join("; ", parts);
     }
 
     // ---------- 二维码登录 ----------

@@ -9,7 +9,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <AssemblyName>MikoNest</AssemblyName>
     <RootNamespace>MiNest</RootNamespace>
-    <Version>0.1.31</Version>
+    <Version>0.1.32</Version>
     <Authors>MikoNest Contributors</Authors>
     <Product>MikoNest</Product>
     <Description>MikoNest - 米哈游 PC 多功能桌面客户端（开源）</Description>
