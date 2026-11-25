@@ -51,6 +51,36 @@ public partial class TaskPage : UserControl
         ["nxx"] = Color.FromRgb(0x5A, 0xC8, 0xFA),
     };
 
+    /// <summary>游戏小图标（Assets/game 下），key 与 SignService.Games 一致；缺图回退色块。</summary>
+    private static readonly Dictionary<string, string> GameIcons = new()
+    {
+        ["genshin"] = "game_genshin.png",
+        ["starrail"] = "game_starrail.png",
+        ["zzz"] = "game_zzz.png",
+        ["bh3"] = "game_bh3.jpg",
+        ["bh2"] = "game_bh2.jpg",
+        ["nxx"] = "game_nxx.jpg",
+        ["miliastra"] = "game_miliastra.png",
+        ["bhyj"] = "game_bhyj.png",
+    };
+
+    private static System.Windows.Media.Imaging.BitmapImage? LoadGameIcon(string fileName)
+    {
+        try
+        {
+            var bmp = new System.Windows.Media.Imaging.BitmapImage();
+            bmp.BeginInit();
+            bmp.UriSource = new Uri($"pack://application:,,,/MikoNest;component/Assets/game/{fileName}", UriKind.Absolute);
+            bmp.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+            bmp.EndInit();
+            return bmp;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     public TaskPage(MainWindow main)
     {
         InitializeComponent();
@@ -103,12 +133,13 @@ public partial class TaskPage : UserControl
         }
 
         TxtUid.Text = string.IsNullOrEmpty(acc.Uid) ? "" : $"UID {acc.Uid}";
-        if (!SignService.HasStoken(acc.Cookie) || !SignService.HasCookieToken(acc.Cookie))
+        // stoken 是长期凭证，存在即视为已登录；cookie_token 缺失只影响部分接口，不再整体判“登录态不完整”
+        if (!SignService.HasStoken(acc.Cookie))
         {
             TxtAccountStatus.Foreground = BrushOf("Warning");
             TxtAccountStatus.Text = "● 登录态不完整";
             BannerStoken.Visibility = Visibility.Visible;
-            TxtAccountHint.Text = "⚠ 当前登录态缺少 stoken / cookie_token（签到与米游币任务必需）。请到「账号」页用「扫码登录 / Cookie 登录」重新登录。";
+            TxtAccountHint.Text = "⚠ 当前登录态缺少 stoken（签到与米游币任务必需）。请到「账号」页用「扫码登录 / Cookie 登录」重新登录。";
         }
         else
         {
@@ -483,9 +514,9 @@ public partial class TaskPage : UserControl
         foreach (var acc in accounts)
         {
             Log($"[INFO]账号 UID:{acc.Uid}（{acc.Nickname}）执行开始");
-            if (!SignService.HasStoken(acc.Cookie) || !SignService.HasCookieToken(acc.Cookie))
+            if (!SignService.HasStoken(acc.Cookie))
             {
-                Log($"账号 {acc.DisplayName} 登录态不完整（缺少 stoken / cookie_token），请在「账号」页重新登录", "ERROR");
+                Log($"账号 {acc.DisplayName} 登录态不完整（缺少 stoken），请在「账号」页重新登录", "ERROR");
                 continue;
             }
             if (ReferenceEquals(acc, AccountService.Active))
@@ -663,6 +694,16 @@ public partial class TaskPage : UserControl
         return host;
     }
 
+    private static TextBlock FallbackGlyph(string name, Color color) => new()
+    {
+        Text = string.IsNullOrEmpty(name) ? "?" : name[..1],
+        FontSize = 14,
+        FontWeight = FontWeights.Bold,
+        Foreground = new SolidColorBrush(color),
+        HorizontalAlignment = HorizontalAlignment.Center,
+        VerticalAlignment = VerticalAlignment.Center,
+    };
+
     private FrameworkElement BuildRoleRow(SignService.GameCheckin game, SignRole role)
     {
         var color = GameColors.TryGetValue(game.Key, out var c) ? c : Color.FromRgb(0x3B, 0x82, 0xF6);
@@ -683,7 +724,7 @@ public partial class TaskPage : UserControl
         Grid.SetColumn(box, 0);
         grid.Children.Add(box);
 
-        // 游戏色块图标
+        // 游戏图标（官方头像小图，圆角裁剪；缺图回退色块首字）
         var icon = new Border
         {
             Width = 36,
@@ -692,16 +733,30 @@ public partial class TaskPage : UserControl
             Background = new SolidColorBrush(Color.FromArgb(0x22, color.R, color.G, color.B)),
             Margin = new Thickness(0, 0, 12, 0),
             VerticalAlignment = VerticalAlignment.Center,
+            ClipToBounds = true,
         };
-        icon.Child = new TextBlock
+        if (GameIcons.TryGetValue(game.Key, out var iconFile))
         {
-            Text = game.Name[..1],
-            FontSize = 14,
-            FontWeight = FontWeights.Bold,
-            Foreground = new SolidColorBrush(color),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
+            var bmp = LoadGameIcon(iconFile);
+            if (bmp != null)
+            {
+                icon.Child = new System.Windows.Controls.Image
+                {
+                    Source = bmp,
+                    Stretch = Stretch.UniformToFill,
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                    VerticalAlignment = VerticalAlignment.Stretch,
+                };
+            }
+            else
+            {
+                icon.Child = FallbackGlyph(game.Name, color);
+            }
+        }
+        else
+        {
+            icon.Child = FallbackGlyph(game.Name, color);
+        }
         Grid.SetColumn(icon, 1);
         grid.Children.Add(icon);
 

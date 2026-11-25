@@ -14,16 +14,21 @@ namespace MiNest.Services;
 public static class SignService
 {
     // ---------- 游戏签到配置（act_id / host 与 TeyvatGuide getActConf 一致） ----------
-    public record GameCheckin(string Key, string Name, string ActId, string Host, string GameBiz);
+    // Icon：Assets/game 下的游戏小图标文件名；CheckinEnabled=false 仅作展示，不参与签到。
+    public record GameCheckin(string Key, string Name, string ActId, string Host, string GameBiz,
+        string Icon = "", bool CheckinEnabled = true);
 
     public static readonly GameCheckin[] Games =
     {
-        new("genshin", "原神", "e202311201442471", "hk4e", "hk4e_cn"),
-        new("starrail", "星穹铁道", "e202304121516551", "hkrpg", "hkrpg_cn"),
-        new("zzz", "绝区零", "e202406242138391", "zzz", "nap_cn"),
-        new("bh3", "崩坏3", "e202306201626331", "bh3", "bh3_cn"),
-        new("bh2", "崩坏学园2", "e202203291431091", "bh2", "bh2_cn"),
-        new("nxx", "未定事件簿", "e202202251749321", "nxx", "nxx_cn"),
+        new("genshin", "原神", "e202311201442471", "hk4e", "hk4e_cn", "game_genshin.png"),
+        new("starrail", "星穹铁道", "e202304121516551", "hkrpg", "hkrpg_cn", "game_starrail.png"),
+        new("zzz", "绝区零", "e202406242138391", "zzz", "nap_cn", "game_zzz.png"),
+        new("bh3", "崩坏3", "e202306201626331", "bh3", "bh3_cn", "game_bh3.jpg"),
+        new("bh2", "崩坏学园2", "e202203291431091", "bh2", "bh2_cn", "game_bh2.jpg"),
+        new("nxx", "未定事件簿", "e202202251749321", "nxx", "nxx_cn", "game_nxx.jpg"),
+        // 以下两款暂无签到配置，仅用于图标展示
+        new("miliastra", "星布谷地", "", "", "", "game_miliastra.png", false),
+        new("bhyj", "崩坏：因缘精灵", "", "", "", "game_bhyj.png", false),
     };
 
     public static GameCheckin? Get(string key) => Array.Find(Games, g => g.Key == key);
@@ -101,41 +106,62 @@ public static class SignService
 
     // ---------- 角色 ----------
 
-    /// <summary>用 cookie_token 拉取该账号绑定过的全部游戏角色（getUserGameRolesByCookie）</summary>
+    /// <summary>拉取该账号绑定过的全部游戏角色：优先 stoken 链路（getUserGameRolesByStoken，DS1/K2），
+    /// 不依赖可能过期的 cookie_token；失败再回退 cookie_token 链路。</summary>
     public static async Task<RolesResult> GetAllRolesAsync(string cookie)
     {
+        // 1) stoken 链路：stoken 长期有效，DS1(K2) + client_type 2
+        if (HasStoken(cookie))
+        {
+            var stCookie = SubCookie(cookie, "stoken", "stuid", "ltuid", "account_id", "mid");
+            var headers = BuildStokenHeader(stCookie, "GET", "");
+            var api = await MiHoYoHttp.SendWithHeadersAsync("GET",
+                "https://api-takumi.miyoushe.com/binding/api/getUserGameRolesByStoken", null, headers);
+            if (api.Retcode == 0 && api.Data is { } data)
+                return new RolesResult(ParseRoleList(data), null, 0, false);
+            // stoken 链路失败（风控/接口变动）时继续尝试 cookie_token 链路，不在此处判全局失效
+        }
+
+        // 2) cookie_token 回退链路（getUserGameRolesByCookie）
         var ck = SubCookie(cookie, "account_id", "cookie_token");
         if (string.IsNullOrEmpty(CookieValue(ck, "cookie_token")))
-            return new RolesResult(new List<SignRole>(), "登录态缺少 cookie_token，请到「账号」页重新登录", -1, true);
+            return new RolesResult(new List<SignRole>(), "暂无法获取游戏角色：登录凭证可能已过期，请到「账号」页重新登录", -1, false);
 
-        var headers = BuildHeader(ck, "GET", "", MiHoYoHttp.X4Salt, isSign: false);
-        var api = await MiHoYoHttp.SendWithHeadersAsync("GET",
-            $"{TakumiApi}/binding/api/getUserGameRolesByCookie", null, headers);
+        var headers2 = BuildHeader(ck, "GET", "", MiHoYoHttp.X4Salt, isSign: false);
+        var api2 = await MiHoYoHttp.SendWithHeadersAsync("GET",
+            $"{TakumiApi}/binding/api/getUserGameRolesByCookie", null, headers2);
 
         var roles = new List<SignRole>();
-        if (IsLoginExpired(api.Retcode))
-            return new RolesResult(roles, "登录状态已失效，请到「账号」页重新登录", api.Retcode, true);
-        if (api.Retcode != 0)
-            return new RolesResult(roles, $"{api.Message}（{api.Retcode}）", api.Retcode, false);
+        if (IsLoginExpired(api2.Retcode))
+            // 仅该接口未通过：不把账号标记为全局失效，避免误报“登录状态已失效”
+            return new RolesResult(roles, "暂无法获取游戏角色：登录凭证可能已过期，请到「账号」页重新登录", api2.Retcode, false);
+        if (api2.Retcode != 0)
+            return new RolesResult(roles, $"{api2.Message}（{api2.Retcode}）", api2.Retcode, false);
 
-        if (api.Data is { } data && data.TryGetProperty("list", out var list) && list.ValueKind == JsonValueKind.Array)
-        {
-            foreach (var el in list.EnumerateArray())
-            {
-                roles.Add(new SignRole
-                {
-                    Uid = el.GetProp("game_uid"),
-                    Nickname = el.GetProp("nickname"),
-                    Region = el.GetProp("region"),
-                    GameBiz = el.GetProp("game_biz"),
-                    Level = el.GetProp("level"),
-                    RegionName = el.TryGetProperty("region_name", out var rn) && rn.ValueKind == JsonValueKind.String
-                        ? rn.GetString() ?? ""
-                        : "",
-                });
-            }
-        }
+        if (api2.Data is { } d2 && d2.TryGetProperty("list", out var list) && list.ValueKind == JsonValueKind.Array)
+            return new RolesResult(ParseRoleList(d2), null, 0, false);
         return new RolesResult(roles, null, 0, false);
+    }
+
+    private static List<SignRole> ParseRoleList(JsonElement data)
+    {
+        var roles = new List<SignRole>();
+        if (!data.TryGetProperty("list", out var list) || list.ValueKind != JsonValueKind.Array) return roles;
+        foreach (var el in list.EnumerateArray())
+        {
+            roles.Add(new SignRole
+            {
+                Uid = el.GetProp("game_uid"),
+                Nickname = el.GetProp("nickname"),
+                Region = el.GetProp("region"),
+                GameBiz = el.GetProp("game_biz"),
+                Level = el.GetProp("level"),
+                RegionName = el.TryGetProperty("region_name", out var rn) && rn.ValueKind == JsonValueKind.String
+                    ? rn.GetString() ?? ""
+                    : "",
+            });
+        }
+        return roles;
     }
 
     // ---------- 游戏签到 ----------
@@ -153,9 +179,8 @@ public static class SignService
 
     public static async Task<SignStateResult> GetSignStateAsync(string cookie, GameCheckin game, SignRole role)
     {
-        var ck = SubCookie(cookie, "account_id", "cookie_token");
-        if (string.IsNullOrEmpty(CookieValue(ck, "cookie_token")))
-            return new SignStateResult(null, "登录态缺少 cookie_token", -1, true);
+        if (!game.CheckinEnabled || string.IsNullOrEmpty(game.ActId))
+            return new SignStateResult(null, "该游戏暂不支持自动签到", -1, false);
 
         var query = SortedQuery(new()
         {
@@ -169,12 +194,13 @@ public static class SignService
         {
             ["user-agent"] = MobileUa,
             ["referer"] = "https://act.mihoyo.com",
-            ["cookie"] = TransCookie(ck),
+            ["cookie"] = TransCookie(SubCookie(cookie, "account_id", "cookie_token", "stoken", "stuid", "mid")),
             ["x-rpc-signgame"] = game.Host,
         };
         var api = await MiHoYoHttp.SendWithHeadersAsync("GET", url, null, headers);
+        // -100/-2000 等只代表该签到接口未通过，不把账号判定为全局登录失效
         if (IsLoginExpired(api.Retcode))
-            return new SignStateResult(null, "登录状态已失效", api.Retcode, true);
+            return new SignStateResult(null, "签到接口暂不可用（凭证可能需重新登录）", api.Retcode, false);
         if (api.Retcode != 0)
             return new SignStateResult(null, $"{api.Message}（{api.Retcode}）", api.Retcode, false);
 
@@ -187,16 +213,16 @@ public static class SignService
     public static async Task<ActionResult> SignRoleAsync(string cookie, GameCheckin game, SignRole role)
     {
         var log = new List<LogLine>();
-        var ck = SubCookie(cookie, "account_id", "cookie_token");
-        if (string.IsNullOrEmpty(CookieValue(ck, "cookie_token")))
+        if (!game.CheckinEnabled || string.IsNullOrEmpty(game.ActId))
         {
-            log.Add(new LogLine("登录态缺少 cookie_token，请重新登录", "ERROR"));
-            return new ActionResult(false, "登录态缺少 cookie_token", -1, log);
+            log.Add(new LogLine($"{game.Name} 暂不支持自动签到", "WARN"));
+            return new ActionResult(false, "暂不支持自动签到", -1, log);
         }
 
         // 字段顺序必须与发送的 JSON 完全一致，否则 DS 校验失败
         var body = JsonSerializer.Serialize(new SignBody("zh-cn", game.ActId, role.Region, role.Uid));
-        var headers = BuildHeader(ck, "POST", body, MiHoYoHttp.X6Salt, isSign: false,
+        var headers = BuildHeader(SubCookie(cookie, "account_id", "cookie_token", "stoken", "stuid", "mid"),
+            "POST", body, MiHoYoHttp.X6Salt, isSign: false,
             clientType: 2, ua: PcUa, referer: "https://webstatic.mihoyo.com");
         headers["x-rpc-signgame"] = game.Host;
 
@@ -228,8 +254,8 @@ public static class SignService
         }
         if (IsLoginExpired(api.Retcode))
         {
-            log.Add(new LogLine($"{label} 登录状态已失效，请重新登录", "ERROR"));
-            return new ActionResult(false, "登录状态已失效", api.Retcode, log);
+            log.Add(new LogLine($"{label} 签到接口暂不可用（凭证可能需重新登录）", "WARN"));
+            return new ActionResult(false, "签到接口暂不可用", api.Retcode, log);
         }
         log.Add(new LogLine($"{label} {api.Message}（{api.Retcode}）", "ERROR"));
         return new ActionResult(false, api.Message, api.Retcode, log);
@@ -237,19 +263,17 @@ public static class SignService
 
     // ---------- 米游币任务 ----------
 
-    /// <summary>拉取米游币任务列表 + 完成状态（getMissions / getUserMissionsState）</summary>
+    /// <summary>拉取米游币任务列表 + 完成状态（getMissions 列表 / sapi getUserMissionsState 状态）。
+    /// 状态接口优先 stoken 链路（DS1/K2），不再因单个状态调用失败就判定“登录状态已失效”。</summary>
     public static async Task<(MissionSnapshot? snapshot, string? error, bool loginExpired)> GetMissionsAsync(string cookie)
     {
-        var ck = SubCookie(cookie, "cookie_token", "account_id");
-        if (string.IsNullOrEmpty(CookieValue(ck, "cookie_token")))
-            return (null, "登录态缺少 cookie_token，请到「账号」页重新登录", true);
-
         var q = SortedQuery(new() { ["point_sn"] = "myb" });
-        var listHeaders = BuildHeader(ck, "GET", q, MiHoYoHttp.X4Salt, isSign: false);
+
+        // 任务列表 getMissions 不强制鉴权；带可用 cookie 即可，缺失 cookie_token 不再阻断
+        var listHeaders = BuildHeader(SubCookie(cookie, "cookie_token", "account_id", "ltoken", "stoken"),
+            "GET", q, MiHoYoHttp.X4Salt, isSign: false);
         var listApi = await MiHoYoHttp.SendWithHeadersAsync("GET", $"{BbsApi}/apihub/wapi/getMissions?{q}", null, listHeaders);
-        if (IsLoginExpired(listApi.Retcode))
-            return (null, "登录状态已失效，请到「账号」页重新登录", true);
-        if (listApi.Retcode != 0)
+        if (listApi.Retcode != 0 && !IsLoginExpired(listApi.Retcode))
             return (null, $"获取任务列表失败：{listApi.Message}（{listApi.Retcode}）", false);
 
         var items = new List<MissionItem>();
@@ -274,20 +298,35 @@ public static class SignService
             }
         }
 
-        var stateHeaders = BuildHeader(ck, "GET", q, MiHoYoHttp.X4Salt, isSign: false);
-        var stateApi = await MiHoYoHttp.SendWithHeadersAsync("GET", $"{BbsApi}/apihub/wapi/getUserMissionsState?{q}", null, stateHeaders);
-        if (IsLoginExpired(stateApi.Retcode))
-            return (null, "登录状态已失效，请到「账号」页重新登录", true);
-        if (stateApi.Retcode != 0)
-            return (null, $"获取任务状态失败：{stateApi.Message}（{stateApi.Retcode}）", false);
+        // 任务状态：stoken 可用时走 sapi（DS1/K2）；否则回退 cookie_token 的 wapi 旧链路
+        JsonElement? sd = null;
+        var stateOk = false;
+        if (HasStoken(cookie))
+        {
+            var stCookie = SubCookie(cookie, "stoken", "stuid", "ltuid", "account_id", "mid");
+            var stHeaders = BuildStokenHeader(stCookie, "GET", q);
+            var stApi = await MiHoYoHttp.SendWithHeadersAsync("GET",
+                $"{BbsApi}/apihub/sapi/getUserMissionsState?{q}", null, stHeaders);
+            if (stApi.Retcode == 0 && stApi.Data is { } sdEl) { sd = sdEl; stateOk = true; }
+        }
+        if (!stateOk)
+        {
+            var ck = SubCookie(cookie, "cookie_token", "account_id");
+            if (!string.IsNullOrEmpty(CookieValue(ck, "cookie_token")))
+            {
+                var stateHeaders = BuildHeader(ck, "GET", q, MiHoYoHttp.X4Salt, isSign: false);
+                var stateApi = await MiHoYoHttp.SendWithHeadersAsync("GET", $"{BbsApi}/apihub/wapi/getUserMissionsState?{q}", null, stateHeaders);
+                if (stateApi.Retcode == 0 && stateApi.Data is { } sdEl2) { sd = sdEl2; stateOk = true; }
+            }
+        }
 
         var snap = new MissionSnapshot { Items = items };
-        if (stateApi.Data is { } sd)
+        if (sd is { } stateData)
         {
-            snap.TodayPoints = AsInt(sd, "already_received_points");
-            snap.TotalPoints = AsInt(sd, "today_total_points");
-            snap.UserPoints = AsInt(sd, "total_points");
-            if (sd.TryGetProperty("states", out var states) && states.ValueKind == JsonValueKind.Array)
+            snap.TodayPoints = AsInt(stateData, "already_received_points");
+            snap.TotalPoints = AsInt(stateData, "today_total_points");
+            snap.UserPoints = AsInt(stateData, "total_points");
+            if (stateData.TryGetProperty("states", out var states) && states.ValueKind == JsonValueKind.Array)
             {
                 foreach (var st in states.EnumerateArray())
                 {
@@ -299,6 +338,7 @@ public static class SignService
                 }
             }
         }
+        // 状态拉取失败不影响任务列表展示，也不判定登录失效
         return (snap, null, false);
     }
 
@@ -448,6 +488,26 @@ public static class SignService
             dict[s[..eq].Trim()] = s[(eq + 1)..].Trim();
         }
         return string.Concat(dict.Select(kv => $"{kv.Key}={kv.Value};"));
+    }
+
+    /// <summary>
+    /// stoken 链路请求头（client_type 2，DS1 = K2 salt+t+r，无 body/query）：
+    /// 用于 getUserGameRolesByStoken / sapi getUserMissionsState 等不依赖 cookie_token 的接口。
+    /// </summary>
+    private static Dictionary<string, string> BuildStokenHeader(string cookie, string method, string data)
+    {
+        return new Dictionary<string, string>
+        {
+            ["user-agent"] = MobileUa,
+            ["x-rpc-app_version"] = AppVersion,
+            ["x-rpc-client_type"] = "2",
+            ["x-requested-with"] = "com.mihoyo.hyperion",
+            ["referer"] = "https://app.mihoyo.com",
+            ["x-rpc-device_id"] = SettingsService.Settings.DeviceId,
+            ["x-rpc-device_fp"] = MiHoYoHttp.DeviceFp,
+            ["DS"] = MiHoYoHttp.GetDsType1(MiHoYoHttp.K2Salt),
+            ["cookie"] = TransCookie(cookie),
+        };
     }
 
     /// <summary>
