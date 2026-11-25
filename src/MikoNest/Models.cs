@@ -40,6 +40,12 @@ public class AppSettings
     public Dictionary<string, int> GameBackgroundIndex { get; set; } = new();
     /// <summary>API 请求用的设备 ID（首次生成后持久化）</summary>
     public string DeviceId { get; set; } = "";
+    /// <summary>通行证/短信登录用的设备指纹（首次生成后持久化，避免每次随机触发风控；15 位数字）</summary>
+    public string DeviceFp { get; set; } = "";
+    /// <summary>通行证请求用的设备名（12 位，首次生成后持久化）</summary>
+    public string DeviceName { get; set; } = "";
+    /// <summary>通行证请求用的设备型号（6 位，首次生成后持久化）</summary>
+    public string DeviceModel { get; set; } = "";
     /// <summary>左侧导航栏（中间区）项顺序：内置 key（启动/社区/抽卡记录/任务/签到/米哈游相关）或 pin:xxx</summary>
     public List<string> NavOrder { get; set; } = new();
     /// <summary>在隐藏设置中被关闭（隐藏）的内置导航项 key；默认空 = 全部显示</summary>

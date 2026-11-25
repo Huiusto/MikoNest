@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using MiNest.Models;
 
@@ -63,6 +64,33 @@ public static class SettingsService
             Settings.DeviceId = Guid.ParseExact(Settings.DeviceId, "N").ToString("D");
             Save();
         }
+
+        // 通行证/短信登录设备信息：首次生成后持久化，避免每次随机被风控判定为异常设备
+        var devChanged = false;
+        if (string.IsNullOrWhiteSpace(Settings.DeviceFp))
+        {
+            var fp = new char[15];
+            for (var i = 0; i < fp.Length; i++) fp[i] = (char)('0' + Random.Shared.Next(10));
+            Settings.DeviceFp = new string(fp);
+            devChanged = true;
+        }
+        if (string.IsNullOrWhiteSpace(Settings.DeviceName))
+        {
+            Settings.DeviceName = RandomDeviceChars(12);
+            devChanged = true;
+        }
+        if (string.IsNullOrWhiteSpace(Settings.DeviceModel))
+        {
+            Settings.DeviceModel = RandomDeviceChars(6);
+            devChanged = true;
+        }
+        if (devChanged) Save();
+    }
+
+    private static string RandomDeviceChars(int len)
+    {
+        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        return new string(Enumerable.Range(0, len).Select(_ => chars[Random.Shared.Next(chars.Length)]).ToArray());
     }
 
     public static void Save()

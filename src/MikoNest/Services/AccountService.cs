@@ -189,7 +189,9 @@ public static class AccountService
     private const string AppLoginSalt = "6s25p5ox5y14umn1p61aqyyvbvvl3lrt";
     private const string BbsVersion = "2.115.0";
     private const string QrUa = "Mozilla/5.0 miHoYoBBS/2.115.0 Capture/2.2.0";
-    private const string MobileUa = "Mozilla/5.0 (Linux; Android 12) Mobile miHoYoBBS/2.115.0";
+    // 短信验证码链路对齐米游社 App 2.119.0（旧版 2.115.0 会被通行证收紧）
+    private const string CaptchaVersion = "2.119.0";
+    private const string MobileUa = "Mozilla/5.0 (Linux; Android 12) Mobile miHoYoBBS/2.119.0";
     private const string AppId = "bll8iq97cem8";
     // 仿 TeyvatGuide toolFunc.ts getInitDeviceInfo：device_name=12 位、device_model=6 位随机大写数字
     private static readonly Random DevRandom = new();
@@ -200,8 +202,13 @@ public static class AccountService
         return new string(Enumerable.Range(0, len).Select(_ => chars[DevRandom.Next(chars.Length)]).ToArray());
     }
 
-    private static string DeviceName => RandomDeviceName(12);
-    private static string DeviceModel => RandomDeviceName(6);
+    // 设备信息持久化（首次由 SettingsService 生成），避免每次随机被风控判定为异常设备
+    private static string DeviceName => !string.IsNullOrEmpty(SettingsService.Settings.DeviceName)
+        ? SettingsService.Settings.DeviceName : RandomDeviceName(12);
+    private static string DeviceModel => !string.IsNullOrEmpty(SettingsService.Settings.DeviceModel)
+        ? SettingsService.Settings.DeviceModel : RandomDeviceName(6);
+    private static string DeviceFp => !string.IsNullOrEmpty(SettingsService.Settings.DeviceFp)
+        ? SettingsService.Settings.DeviceFp : "0000000000000";
 
     private static readonly Random DsRandom = new();
 
@@ -274,6 +281,15 @@ public static class AccountService
         }
     }
 
+    /// <summary>判断 token 对象是否为 SToken（token_type=1；兼容数字 1 与字符串 "1"）。</summary>
+    private static bool IsStokenToken(JsonElement tok)
+    {
+        if (!tok.TryGetProperty("token_type", out var tt)) return false;
+        var isStoken = tt.ValueKind == JsonValueKind.Number && tt.TryGetInt32(out var n) && n == 1
+                       || tt.ValueKind == JsonValueKind.String && tt.GetString() == "1";
+        return isStoken && tok.TryGetProperty("token", out var tv) && !string.IsNullOrEmpty(tv.GetString());
+    }
+
     /// <summary>把通行证登录响应（tokens + user_info）组装为可用 Cookie（口径同 TeyvatGuide：account_id/stuid/ltuid=aid，mid 独立）</summary>
     private static async Task<(bool ok, string message, string? cookie)> BuildCookieFromLoginDataAsync(JsonElement data)
     {
@@ -286,15 +302,17 @@ public static class AccountService
         }
 
         string? stoken = null;
+        // 扫码登录返回 tokens 数组；短信验证码登录返回单个 token 对象（{token_type, token}），两种结构都要兼容
         if (data.TryGetProperty("tokens", out var tokens) && tokens.ValueKind == JsonValueKind.Array)
         {
             foreach (var tok in tokens.EnumerateArray())
             {
-                var tt = tok.GetProp("token_type");
-                var tk = tok.GetProp("token");
-                if (tt == "1" && !string.IsNullOrEmpty(tk))
-                    stoken = tk;
+                if (IsStokenToken(tok)) stoken = tok.GetProp("token");
             }
+        }
+        else if (data.TryGetProperty("token", out var tokObj) && tokObj.ValueKind == JsonValueKind.Object)
+        {
+            if (IsStokenToken(tokObj)) stoken = tokObj.GetProp("token");
         }
 
         if (string.IsNullOrEmpty(stoken) || string.IsNullOrEmpty(aid) || string.IsNullOrEmpty(mid))
@@ -555,10 +573,10 @@ public static class AccountService
         return new Dictionary<string, string>
         {
             ["x-rpc-aigis"] = "",
-            ["x-rpc-app_version"] = BbsVersion,
+            ["x-rpc-app_version"] = CaptchaVersion,
             ["x-rpc-client_type"] = "2",
             ["x-rpc-app_id"] = AppId,
-            ["x-rpc-device_fp"] = "",
+            ["x-rpc-device_fp"] = DeviceFp,
             ["x-rpc-device_name"] = DeviceName,
             ["x-rpc-device_id"] = DeviceId,
             ["x-rpc-device_model"] = DeviceModel,
@@ -567,14 +585,14 @@ public static class AccountService
         };
     }
 
-    /// <summary>验证码接口公共请求头（仿 TeyvatGuide passportReq：aigis 显式空串 + 假设备指纹 + device_name/model）</summary>
+    /// <summary>验证码接口公共请求头（仿 TeyvatGuide passportReq：aigis 显式空串 + 持久化设备指纹 + device_name/model）</summary>
     private static Dictionary<string, string> BuildCaptchaHeaders()
     {
         var headers = BuildMobileHeaders();
         headers["referer"] = "https://user.miyoushe.com/";
         headers["x-rpc-game_biz"] = "hk4e_cn";
         headers["x-rpc-aigis"] = "";
-        headers["x-rpc-device_fp"] = "0000000000000";
+        headers["x-rpc-device_fp"] = DeviceFp;
         headers["x-rpc-device_name"] = DeviceName;
         headers["x-rpc-device_model"] = DeviceModel;
         return headers;
@@ -605,14 +623,17 @@ public static class AccountService
         return (false, SmsFriendlyMessage(api, "登录"), null);
     }
 
-    /// <summary>把验证码接口的失败码转成可读提示：区分极验挑战（x-rpc-aigis）与网络风控（-3001）。</summary>
+    /// <summary>把验证码接口的失败码转成可读提示：区分极验挑战（x-rpc-aigis）、请求频繁与验证码错误。</summary>
     private static string SmsFriendlyMessage(ApiResponse api, string stage)
     {
         if (!string.IsNullOrEmpty(api.Aigis))
-            return $"{stage}失败：米哈游要求先完成滑块验证（极验风控），请改用「扫码登录」或「网页登录」。";
+            return $"{stage}失败：米哈游要求先完成图形验证（极验风控），请在弹出的验证窗口中完成后自动重试。";
         return api.Retcode switch
         {
-            -3001 => $"{stage}失败：米哈游对当前网络环境的短信验证码接口做了风控（-3001），请改用「扫码登录 / Cookie 登录 / 网页登录」；使用加速器切回国内网络后可重试。",
+            -3101 => $"{stage}失败：请求过于频繁，请间隔几分钟后再试；若反复出现请改用「扫码登录 / Cookie 登录」。",
+            -3204 => $"{stage}失败：短信验证码错误或已过期，请重新获取验证码后再登录。",
+            -3001 => $"{stage}失败：参数不合法或被风控（-3001），请改用「扫码登录 / Cookie 登录 / 网页登录」；切回国内网络后可重试。",
+            -502 => $"{stage}失败：米哈游服务暂时不可用（-502），请稍后重试。",
             _ => $"{api.Message}（{api.Retcode}）",
         };
     }
@@ -651,6 +672,9 @@ public static class AccountService
     public static string BuildAigisString(string sessionId, string validateJson)
         => $"{sessionId};{Convert.ToBase64String(Encoding.UTF8.GetBytes(validateJson))}";
 
+    /// <summary>最近一次发送验证码时服务端下发的 action_type（login/register 等），登录环节原样回传。</summary>
+    private static string _lastSmsActionType = "login";
+
     /// <summary>发送验证码（可带 aigis 重试）；返回 (是否成功, 提示, 极验挑战)。</summary>
     public static async Task<(bool ok, string message, SmsChallengeInfo? challenge)> SendSmsCodeDetailedAsync(string mobile, string? aigis = null)
     {
@@ -659,7 +683,16 @@ public static class AccountService
         var body = JsonSerializer.Serialize(new { area_code = RsaEncrypt("+86"), mobile = RsaEncrypt(mobile) });
         var api = await MiHoYoHttp.SendWithHeadersAsync("POST",
             "https://passport-api.mihoyo.com/account/ma-cn-verifier/verifier/createLoginCaptcha", body, headers);
-        if (api.Retcode == 0) return (true, "验证码已发送", null);
+        if (api.Retcode == 0)
+        {
+            // 保存服务端下发的 action_type，登录环节必须原样回传，否则会被判定参数不合法
+            if (api.Data != null)
+            {
+                var at = api.Data.Value.GetProp("action_type");
+                if (!string.IsNullOrEmpty(at)) _lastSmsActionType = at;
+            }
+            return (true, "验证码已发送", null);
+        }
         var ch = ParseSmsChallenge(api);
         if (ch != null) return (false, SmsFriendlyMessage(api, "发送验证码"), ch);
         return (false, SmsFriendlyMessage(api, "发送验证码"), null);
@@ -674,7 +707,7 @@ public static class AccountService
         {
             area_code = RsaEncrypt("+86"),
             mobile = RsaEncrypt(mobile),
-            action_type = "login",
+            action_type = _lastSmsActionType,
             captcha = code,
         });
         var api = await MiHoYoHttp.SendWithHeadersAsync("POST",
