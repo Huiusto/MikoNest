@@ -16,8 +16,9 @@ public static class MiHoYoHttp
     public const string Salt = "xV8v4Qu54lUKNrEY0lmhS5TfxyuLbcwB";
     public const string X4Salt = "xV8v4Qu54lUKrEYFZkJhB8cuOh9Asafs";
     public const string X6Salt = "t0qEgfub6cvueAPgR5m9aQWWVciEer7v";
-    public const string K2Salt = "24cf11fb14a84f0683e7cadf7c788ba2";
-    public const string LK2Salt = "8fb73233f73e200aa1f818b5705d4442";
+    // K2/LK2 盐值对齐 TeyvatGuide（社区点赞/分享/看帖 DS1 签名）
+    public const string K2Salt = "09d39d16528ca0e4900a39ecc07d5062";
+    public const string LK2Salt = "b99b74d9023a6511231be2c7209b6fdb";
     // 设备指纹（TeyvatGuide 用固定占位值）
     public const string DeviceFp = "0000000000000";
     public const string UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) miHoYoBBS/2.119.0";

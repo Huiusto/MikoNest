@@ -13,6 +13,11 @@ public sealed class ChangelogWindow : Window
 
     private static readonly Entry[] Entries =
     {
+        new("0.1.34", "2026-11-25", new[]
+        {
+            "修复扫码与手机号登录后账号仍显示占位昵称的问题：通行证昵称与米游社 UID 改由米游社用户资料接口获取（口径对齐 TeyvatGuide，DS1 签名、仅带 cookie_token+account_id），昵称取不到时回退通行证账号名，账号列表正确显示「昵称（米游社 UID）」。(๑•̀ㅂ•́)و✧",
+            "修复「任务/签到」提示「签到接口暂不可用」：签到状态/执行、米游币任务列表与状态、社区打卡、浏览点赞分享的 Cookie 子集、DS 类型与盐值对齐 TeyvatGuide 实用脚本板块；缺少 cookie_token 凭证时给出明确提示，接口原始 retcode 与消息一并透出，不再笼统报「暂不可用」。(＾▽＾)",
+        }),
         new("0.1.33", "2026-11-25", new[]
         {
             "「游戏设置」里的「预约游戏」「米哈云游」开关现在只控制各自入口：隐藏时保留原位置占位，其余按钮与卡片的位置、对齐不再受影响。(＾▽＾)",
@@ -163,7 +168,7 @@ public sealed class ChangelogWindow : Window
         });
         header.Children.Add(new TextBlock
         {
-            Text = "MikoNest 从首个公开版本到 0.1.33 的更新与修复记录",
+            Text = "MikoNest 从首个公开版本到 0.1.34 的更新与修复记录",
             FontSize = 12,
             Margin = new Thickness(0, 5, 0, 0),
             Foreground = (Brush)Application.Current.Resources["TextSecondary"],

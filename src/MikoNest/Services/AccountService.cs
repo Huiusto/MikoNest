@@ -210,7 +210,9 @@ public static class AccountService
 
         try
         {
-            var ck = SubCookie(cookie, "account_id", "cookie_token", "stoken", "stuid", "mid");
+            // 对齐 TeyvatGuide bbsReq.getUserFullInfo：Cookie 仅 cookie_token+account_id，
+            // DS1（X4 salt&t&r，isSign=true），PC UA / client_type 5 / referer webstatic。
+            var ck = SubCookie(cookie, "cookie_token", "account_id");
             const string query = "gids=2";
             var headers = new Dictionary<string, string>
             {
@@ -218,10 +220,10 @@ public static class AccountService
                 ["x-rpc-app_version"] = MiHoYoHttp.AppVersion,
                 ["x-rpc-client_type"] = "5",
                 ["x-requested-with"] = "com.mihoyo.hyperion",
-                ["referer"] = "https://www.miyoushe.com/",
+                ["referer"] = "https://webstatic.mihoyo.com",
                 ["x-rpc-device_id"] = DeviceId,
                 ["x-rpc-device_fp"] = MiHoYoHttp.DeviceFp,
-                ["DS"] = MiHoYoHttp.GetDsType2(MiHoYoHttp.X4Salt, "", query),
+                ["DS"] = MiHoYoHttp.GetDsType1(MiHoYoHttp.X4Salt),
                 ["cookie"] = ck,
             };
             var api = await MiHoYoHttp.SendWithHeadersAsync("GET",
@@ -233,14 +235,16 @@ public static class AccountService
                 var nickname = ui.GetProp("nickname");
                 var uid = ui.GetProp("uid");
                 if (string.IsNullOrEmpty(uid)) uid = aid;
+                if (string.IsNullOrEmpty(nickname)) nickname = CookieGet(cookie, "account_name");
                 return (string.IsNullOrEmpty(nickname) ? "米游社用户" : nickname, uid);
             }
         }
         catch
         {
-            // 身份信息拉取失败不阻断建号，走 Cookie 内 aid 兜底
+            // 身份信息拉取失败不阻断建号，走 Cookie 内 aid / account_name 兜底
         }
-        return ("米游社用户", aid);
+        var fallbackName = CookieGet(cookie, "account_name");
+        return (string.IsNullOrEmpty(fallbackName) ? "米游社用户" : fallbackName, aid);
     }
 
     /// <summary>takumi 校验接口请求头（带 Cookie，无需 DS）</summary>
@@ -411,10 +415,12 @@ public static class AccountService
     {
         var mid = "";
         var aid = "";
+        var accountName = "";
         if (data.TryGetProperty("user_info", out var ui))
         {
             mid = ui.GetProp("mid");
             aid = ui.GetProp("aid");
+            accountName = ui.GetProp("account_name");
         }
 
         string? stoken = null;
@@ -455,6 +461,8 @@ public static class AccountService
         var sb = new StringBuilder();
         sb.Append($"account_id={aid}; ").Append($"stuid={aid}; ").Append($"ltuid={aid}; ")
           .Append($"mid={mid}; ").Append($"stoken={stoken}; ");
+        if (!string.IsNullOrEmpty(accountName))
+            sb.Append($"account_name={accountName}; ");
         if (!string.IsNullOrEmpty(ltoken))
             sb.Append($"ltoken={ltoken}; ");
         if (!string.IsNullOrEmpty(cookieToken))

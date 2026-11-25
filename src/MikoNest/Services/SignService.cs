@@ -190,17 +190,21 @@ public static class SignService
             ["uid"] = role.Uid,
         });
         var url = $"{LunaApi}/{game.Host}/info?{query}";
+        // 对齐 TeyvatGuide lunaReq.getLunaInfo：Cookie 仅 cookie_token+account_id，不带 stoken，无 DS
+        var ck = SubCookie(cookie, "account_id", "cookie_token");
+        if (string.IsNullOrEmpty(CookieValue(ck, "cookie_token")))
+            return new SignStateResult(null, "缺少 cookie_token 凭证，请到「账号」页重新登录", -1, false);
         var headers = new Dictionary<string, string>
         {
             ["user-agent"] = MobileUa,
             ["referer"] = "https://act.mihoyo.com",
-            ["cookie"] = TransCookie(SubCookie(cookie, "account_id", "cookie_token", "stoken", "stuid", "mid")),
+            ["cookie"] = TransCookie(ck),
             ["x-rpc-signgame"] = game.Host,
         };
         var api = await MiHoYoHttp.SendWithHeadersAsync("GET", url, null, headers);
-        // -100/-2000 等只代表该签到接口未通过，不把账号判定为全局登录失效
+        // -100/-2000 等只代表该签到接口未通过，不把账号判定为全局登录失效；保留原始 retcode/message 便于定位
         if (IsLoginExpired(api.Retcode))
-            return new SignStateResult(null, "签到接口暂不可用（凭证可能需重新登录）", api.Retcode, false);
+            return new SignStateResult(null, $"签到接口暂不可用（{api.Message}，{api.Retcode}）", api.Retcode, false);
         if (api.Retcode != 0)
             return new SignStateResult(null, $"{api.Message}（{api.Retcode}）", api.Retcode, false);
 
@@ -219,9 +223,17 @@ public static class SignService
             return new ActionResult(false, "暂不支持自动签到", -1, log);
         }
 
+        var ck = SubCookie(cookie, "account_id", "cookie_token");
+        if (string.IsNullOrEmpty(CookieValue(ck, "cookie_token")))
+        {
+            log.Add(new LogLine($"{game.Name}-{RegionLabel(role)}-{role.Uid} 缺少 cookie_token 凭证，请到「账号」页重新登录", "WARN"));
+            return new ActionResult(false, "缺少 cookie_token 凭证", -1, log);
+        }
+
         // 字段顺序必须与发送的 JSON 完全一致，否则 DS 校验失败
         var body = JsonSerializer.Serialize(new SignBody("zh-cn", game.ActId, role.Region, role.Uid));
-        var headers = BuildHeader(SubCookie(cookie, "account_id", "cookie_token", "stoken", "stuid", "mid"),
+        // 对齐 TeyvatGuide lunaReq.lunaSign：X6 类型 2 DS，client_type 2，PC UA / webstatic referer
+        var headers = BuildHeader(ck,
             "POST", body, MiHoYoHttp.X6Salt, isSign: false,
             clientType: 2, ua: PcUa, referer: "https://webstatic.mihoyo.com");
         headers["x-rpc-signgame"] = game.Host;
@@ -254,8 +266,9 @@ public static class SignService
         }
         if (IsLoginExpired(api.Retcode))
         {
-            log.Add(new LogLine($"{label} 签到接口暂不可用（凭证可能需重新登录）", "WARN"));
-            return new ActionResult(false, "签到接口暂不可用", api.Retcode, log);
+            var msg = $"签到接口暂不可用（{api.Message}，{api.Retcode}）";
+            log.Add(new LogLine($"{label} {msg}", "WARN"));
+            return new ActionResult(false, msg, api.Retcode, log);
         }
         log.Add(new LogLine($"{label} {api.Message}（{api.Retcode}）", "ERROR"));
         return new ActionResult(false, api.Message, api.Retcode, log);
@@ -263,14 +276,14 @@ public static class SignService
 
     // ---------- 米游币任务 ----------
 
-    /// <summary>拉取米游币任务列表 + 完成状态（getMissions 列表 / sapi getUserMissionsState 状态）。
-    /// 状态接口优先 stoken 链路（DS1/K2），不再因单个状态调用失败就判定“登录状态已失效”。</summary>
+    /// <summary>拉取米游币任务列表 + 完成状态（getMissions 列表 / wapi getUserMissionsState 状态），口径对齐 TeyvatGuide。
+    /// 状态拉取失败不影响任务列表展示，也不判定登录失效。</summary>
     public static async Task<(MissionSnapshot? snapshot, string? error, bool loginExpired)> GetMissionsAsync(string cookie)
     {
         var q = SortedQuery(new() { ["point_sn"] = "myb" });
 
-        // 任务列表 getMissions 不强制鉴权；带可用 cookie 即可，缺失 cookie_token 不再阻断
-        var listHeaders = BuildHeader(SubCookie(cookie, "cookie_token", "account_id", "ltoken", "stoken"),
+        // 任务列表 getMissions：对齐 TeyvatGuide，cookie_token+account_id，X4 类型 2 DS
+        var listHeaders = BuildHeader(SubCookie(cookie, "cookie_token", "account_id"),
             "GET", q, MiHoYoHttp.X4Salt, isSign: false);
         var listApi = await MiHoYoHttp.SendWithHeadersAsync("GET", $"{BbsApi}/apihub/wapi/getMissions?{q}", null, listHeaders);
         if (listApi.Retcode != 0 && !IsLoginExpired(listApi.Retcode))
@@ -298,26 +311,14 @@ public static class SignService
             }
         }
 
-        // 任务状态：stoken 可用时走 sapi（DS1/K2）；否则回退 cookie_token 的 wapi 旧链路
+        // 任务状态：对齐 TeyvatGuide apiHubReq.getUserMissionsState，仅 wapi 链路，X4 类型 2 DS，cookie_token+account_id
         JsonElement? sd = null;
-        var stateOk = false;
-        if (HasStoken(cookie))
+        var ck = SubCookie(cookie, "cookie_token", "account_id");
+        if (!string.IsNullOrEmpty(CookieValue(ck, "cookie_token")))
         {
-            var stCookie = SubCookie(cookie, "stoken", "stuid", "ltuid", "account_id", "mid");
-            var stHeaders = BuildStokenHeader(stCookie, "GET", q);
-            var stApi = await MiHoYoHttp.SendWithHeadersAsync("GET",
-                $"{BbsApi}/apihub/sapi/getUserMissionsState?{q}", null, stHeaders);
-            if (stApi.Retcode == 0 && stApi.Data is { } sdEl) { sd = sdEl; stateOk = true; }
-        }
-        if (!stateOk)
-        {
-            var ck = SubCookie(cookie, "cookie_token", "account_id");
-            if (!string.IsNullOrEmpty(CookieValue(ck, "cookie_token")))
-            {
-                var stateHeaders = BuildHeader(ck, "GET", q, MiHoYoHttp.X4Salt, isSign: false);
-                var stateApi = await MiHoYoHttp.SendWithHeadersAsync("GET", $"{BbsApi}/apihub/wapi/getUserMissionsState?{q}", null, stateHeaders);
-                if (stateApi.Retcode == 0 && stateApi.Data is { } sdEl2) { sd = sdEl2; stateOk = true; }
-            }
+            var stateHeaders = BuildHeader(ck, "GET", q, MiHoYoHttp.X4Salt, isSign: false);
+            var stateApi = await MiHoYoHttp.SendWithHeadersAsync("GET", $"{BbsApi}/apihub/wapi/getUserMissionsState?{q}", null, stateHeaders);
+            if (stateApi.Retcode == 0 && stateApi.Data is { } sdEl2) sd = sdEl2;
         }
 
         var snap = new MissionSnapshot { Items = items };
