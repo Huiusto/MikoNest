@@ -13,6 +13,12 @@ public sealed class ChangelogWindow : Window
 
     private static readonly Entry[] Entries =
     {
+        new("0.1.33", "2026-11-25", new[]
+        {
+            "「游戏设置」里的「预约游戏」「米哈云游」开关现在只控制各自入口：隐藏时保留原位置占位，其余按钮与卡片的位置、对齐不再受影响。(＾▽＾)",
+            "修复扫码与手机号登录后，账号名称和米游社 UID 错误显示成绑定游戏（如崩坏学院2）角色名与游戏 UID 的问题：账号列表改为展示通行证昵称与米游社 UID（账号 ID），身份信息取自米游社用户资料接口。(๑•̀ㅂ•́)و✧",
+            "调整全新安装后的默认设置：「预约游戏」「米哈云游」入口默认关闭；页面不透明度默认最低；界面配色默认跟随系统；关闭软件默认最小化到系统托盘。(￣▽￣)ノ",
+        }),
         new("0.1.32", "2026-11-25", new[]
         {
             "修复「账号」页扫码登录与手机号短信登录均提示「Cookie 无效：登录状态失败」的问题：登录校验不再只依赖 cookie_token，新增 stoken 角色链路（getUserGameRolesByStoken）与 Action Ticket 身份兜底，扫码/短信拿到 stoken 即可完成登录建号。(๑•̀ㅂ•́)و✧",
@@ -157,7 +163,7 @@ public sealed class ChangelogWindow : Window
         });
         header.Children.Add(new TextBlock
         {
-            Text = "MikoNest 从首个公开版本到 0.1.32 的更新与修复记录",
+            Text = "MikoNest 从首个公开版本到 0.1.33 的更新与修复记录",
             FontSize = 12,
             Margin = new Thickness(0, 5, 0, 0),
             Foreground = (Brush)Application.Current.Resources["TextSecondary"],

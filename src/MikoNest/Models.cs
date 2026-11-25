@@ -25,7 +25,7 @@ public class GameDef
 /// <summary>应用设置（明文部分，存 %AppData%\MikoNest\settings.json）</summary>
 public class AppSettings
 {
-    public string Theme { get; set; } = "Light";
+    public string Theme { get; set; } = "System";
     /// <summary>界面语言（"" = 跟随系统；zh-Hans/zh-Hant/en/ja/ko/ru），重启后生效</summary>
     public string Language { get; set; } = "";
     /// <summary>自定义数据目录（设置-应用信息 更改）；为空则使用默认 %AppData%\MikoNest</summary>
@@ -61,7 +61,7 @@ public class AppSettings
     /// <summary>退出游戏后自动弹出启动器主界面</summary>
     public bool BringFrontOnGameExit { get; set; }
     /// <summary>关闭行为：Tray=最小化到系统托盘，Exit=退出启动器</summary>
-    public string CloseBehavior { get; set; } = "Exit";
+    public string CloseBehavior { get; set; } = "Tray";
     /// <summary>胡桃风格背景：用胡桃主题插画作为应用界面背景（隐藏设置里开启）</summary>
     public bool HutaoBackdrop { get; set; }
     /// <summary>自定义软件背景图（隐藏设置里选择，绝对路径；铺满整个窗口、低于内容层）</summary>
@@ -71,17 +71,17 @@ public class AppSettings
     /// <summary>隐藏左侧「账号」按钮（设置页「更新」上方的开关控制）</summary>
     public bool HideAccountNav { get; set; }
     /// <summary>卡片 / 框框背景不透明度（0-100，设置页最上方滑动条控制）</summary>
-    public int CardOpacity { get; set; } = 100;
+    public int CardOpacity { get; set; } = 0;
     /// <summary>抽卡记录是否显示三星条目（抽卡页「设置」）</summary>
     public bool GachaShow3Star { get; set; } = true;
     /// <summary>用户已忽略的自动更新提示版本；同一版本不再自动弹窗，出现更高版本才重新提示</summary>
     public string IgnoredUpdateVersion { get; set; } = "";
     /// <summary>启动页「全部游戏」的自定义顺序（gameKey 列表；未出现的游戏按内置顺序补在末尾）</summary>
     public List<string> LaunchGameOrder { get; set; } = new();
-    /// <summary>启动页是否显示左下角「预约游戏」卡片（游戏设置里开关，默认显示）</summary>
-    public bool ShowReserveGames { get; set; } = true;
-    /// <summary>启动页是否显示左上角「米哈云游」按钮（游戏设置里开关，默认显示）</summary>
-    public bool ShowMhyyButton { get; set; } = true;
+    /// <summary>启动页是否显示左下角「预约游戏」卡片（游戏设置里开关，默认关闭）</summary>
+    public bool ShowReserveGames { get; set; } = false;
+    /// <summary>启动页是否显示左上角「米哈云游」按钮（游戏设置里开关，默认关闭）</summary>
+    public bool ShowMhyyButton { get; set; } = false;
 }
 
 /// <summary>固定到左侧导航栏的快捷链接</summary>

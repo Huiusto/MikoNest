@@ -143,10 +143,11 @@ public static class AccountService
 
     // ---------- Cookie 校验 ----------
 
-    /// <summary>校验 Cookie 并取昵称/UID。
+    /// <summary>校验 Cookie 并取通行证昵称/米游社 UID。
     /// 优先 cookie_token 链路（getUserGameRolesByCookie）；cookie_token 缺失或该链路失效时回退
     /// stoken 链路（getUserGameRolesByStoken，DS1/K2，client_type 2）——扫码/短信登录拿到的
-    /// stoken 长期有效，不必依赖易失效的 cookie_token。两条链路都失败才判定 Cookie 无效。</summary>
+    /// stoken 长期有效，不必依赖易失效的 cookie_token。两条链路都失败才判定 Cookie 无效。
+    /// 账号列表显示的是通行证身份（昵称 + 米游社 UID=aid），不取游戏角色昵称与 game_uid。</summary>
     public static async Task<(bool ok, string nickname, string uid, string message)> ValidateCookieAsync(string cookie)
     {
         // 1) cookie_token 链路（getUserGameRolesByCookie）
@@ -155,8 +156,8 @@ public static class AccountService
             null, BuildValidateHeaders(cookie));
         if (api.Retcode == 0 && api.Data != null)
         {
-            var (nickname, uid) = ReadFirstRole(api.Data.Value);
-            return (true, string.IsNullOrEmpty(nickname) ? "米游社用户" : nickname, uid, "ok");
+            var (nickname, uid) = await ResolveIdentityAsync(cookie);
+            return (true, nickname, uid, "ok");
         }
         var lastError = $"{api.Message}（{api.Retcode}）";
 
@@ -169,8 +170,8 @@ public static class AccountService
                 null, BuildStokenValidateHeaders(stCookie));
             if (api2.Retcode == 0 && api2.Data != null)
             {
-                var (nickname2, uid2) = ReadFirstRole(api2.Data.Value);
-                return (true, string.IsNullOrEmpty(nickname2) ? "米游社用户" : nickname2, uid2, "ok");
+                var (nickname2, uid2) = await ResolveIdentityAsync(cookie);
+                return (true, nickname2, uid2, "ok");
             }
             lastError = $"{api2.Message}（{api2.Retcode}）";
         }
@@ -188,22 +189,58 @@ public static class AccountService
                 "https://api-takumi.mihoyo.com/auth/api/getActionTicketBySToken?action_type=game_role",
                 null, BuildPlainStokenHeaders(mid3, aid3, stoken3));
             if (at.Retcode == 0)
-                return (true, "米游社用户", aid3, "ok");
+            {
+                var (nickname3, uid3) = await ResolveIdentityAsync(cookie);
+                return (true, nickname3, string.IsNullOrEmpty(uid3) ? aid3 : uid3, "ok");
+            }
             lastError = $"{at.Message}（{at.Retcode}）";
         }
 
         return (false, "", "", lastError);
     }
 
-    private static (string nickname, string uid) ReadFirstRole(JsonElement data)
+    /// <summary>取通行证昵称与米游社 UID（bbs-api getUserFullInfo，对齐 TeyvatGuide）。
+    /// 失败时回退 Cookie 里的 account_id/stuid/ltuid 作为米游社 UID，昵称用占位；
+    /// 绝不使用任一绑定游戏角色的昵称 / game_uid。</summary>
+    private static async Task<(string nickname, string uid)> ResolveIdentityAsync(string cookie)
     {
-        if (data.TryGetProperty("list", out var list) &&
-            list.ValueKind == JsonValueKind.Array && list.GetArrayLength() > 0)
+        var aid = CookieGet(cookie, "account_id");
+        if (string.IsNullOrEmpty(aid)) aid = CookieGet(cookie, "stuid");
+        if (string.IsNullOrEmpty(aid)) aid = CookieGet(cookie, "ltuid");
+
+        try
         {
-            var first = list[0];
-            return (first.GetProp("nickname"), first.GetProp("game_uid"));
+            var ck = SubCookie(cookie, "account_id", "cookie_token", "stoken", "stuid", "mid");
+            const string query = "gids=2";
+            var headers = new Dictionary<string, string>
+            {
+                ["user-agent"] = MiHoYoHttp.UserAgent,
+                ["x-rpc-app_version"] = MiHoYoHttp.AppVersion,
+                ["x-rpc-client_type"] = "5",
+                ["x-requested-with"] = "com.mihoyo.hyperion",
+                ["referer"] = "https://www.miyoushe.com/",
+                ["x-rpc-device_id"] = DeviceId,
+                ["x-rpc-device_fp"] = MiHoYoHttp.DeviceFp,
+                ["DS"] = MiHoYoHttp.GetDsType2(MiHoYoHttp.X4Salt, "", query),
+                ["cookie"] = ck,
+            };
+            var api = await MiHoYoHttp.SendWithHeadersAsync("GET",
+                $"https://bbs-api.miyoushe.com/user/wapi/getUserFullInfo?{query}", null, headers);
+            if (api.Retcode == 0 && api.Data != null &&
+                api.Data.Value.TryGetProperty("user_info", out var ui) &&
+                ui.ValueKind == JsonValueKind.Object)
+            {
+                var nickname = ui.GetProp("nickname");
+                var uid = ui.GetProp("uid");
+                if (string.IsNullOrEmpty(uid)) uid = aid;
+                return (string.IsNullOrEmpty(nickname) ? "米游社用户" : nickname, uid);
+            }
         }
-        return ("", "");
+        catch
+        {
+            // 身份信息拉取失败不阻断建号，走 Cookie 内 aid 兜底
+        }
+        return ("米游社用户", aid);
     }
 
     /// <summary>takumi 校验接口请求头（带 Cookie，无需 DS）</summary>
