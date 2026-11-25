@@ -97,7 +97,7 @@ public partial class AccountPage : UserControl
 
     private async Task<bool> AddAccountByCookieAsync(string cookie, string? source)
     {
-        var (ok, nickname, uid, msg) = await AccountService.ValidateCookieAsync(cookie);
+        var (ok, nickname, uid, msg, refreshed) = await AccountService.ValidateCookieAsync(cookie);
         if (!ok)
         {
             (source switch
@@ -110,6 +110,7 @@ public partial class AccountPage : UserControl
             return false;
         }
 
+        if (!string.IsNullOrEmpty(refreshed)) cookie = refreshed;
         AccountService.AddOrUpdate(new Account { Nickname = nickname, Uid = uid, Cookie = cookie });
         (source switch
         {
@@ -365,12 +366,13 @@ public partial class AccountPage : UserControl
                 ImportStatus.Text = "未在浏览器中找到登录态，请先在「社区 / 视频」页登录米游社。";
                 return;
             }
-            var (vok, nickname, uid, vmsg) = await AccountService.ValidateCookieAsync(cookie);
+            var (vok, nickname, uid, vmsg, vrefreshed) = await AccountService.ValidateCookieAsync(cookie);
             if (!vok)
             {
                 ImportStatus.Text = $"Cookie 无效：{vmsg}";
                 return;
             }
+            if (!string.IsNullOrEmpty(vrefreshed)) cookie = vrefreshed;
             AccountService.AddOrUpdate(new Account { Nickname = nickname, Uid = uid, Cookie = cookie });
             ImportStatus.Text = $"已导入账号：{nickname}（{uid}）";
             RefreshList();

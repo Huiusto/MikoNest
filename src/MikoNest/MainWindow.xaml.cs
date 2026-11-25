@@ -949,13 +949,14 @@ public partial class MainWindow : Window
                     ShowPage("账号");
                     return;
                 }
-                var (vok, nickname, uid, vmsg) = await AccountService.ValidateCookieAsync(cookie);
+                var (vok, nickname, uid, vmsg, vrefreshed) = await AccountService.ValidateCookieAsync(cookie);
                 if (!vok)
                 {
                     PendingAccountNotice = $"登录态无效：{vmsg}";
                     ShowPage("账号");
                     return;
                 }
+                if (!string.IsNullOrEmpty(vrefreshed)) cookie = vrefreshed;
                 AccountService.AddOrUpdate(new Account { Nickname = nickname, Uid = uid, Cookie = cookie });
                 PendingAccountNotice = $"已自动导入账号：{nickname}（{uid}）";
                 ShowPage("账号");

@@ -13,6 +13,11 @@ public sealed class ChangelogWindow : Window
 
     private static readonly Entry[] Entries =
     {
+        new("0.1.36", "2026-11-25", new[]
+        {
+            "换票链路改为现代通行证 V2 接口（ma-cn-session/app/exchange，stoken 换取 cookie_token_v2 / ltoken_v2），旧换票链路作为兜底；已保存、只带 stoken 的账号在登录校验与任务/签到拉取前会自动换票补齐 cookie_token / ltoken，无需重新扫码。(๑•̀ㅂ•́)و✧",
+            "角色获取与身份展示对齐已验证口径：角色接口 getUserGameRolesByCookie 逐款游戏循环、身份接口 getUserFullInfo 按账号 UID 查询，均携带完整 Cookie、不再附加 DS 签名；修复刚登录账号仍误报「登录凭证可能已过期」、账号显示占位昵称与账号 ID 的问题。(＾▽＾)",
+        }),
         new("0.1.35", "2026-11-25", new[]
         {
             "账号扫码 / 手机号登录后先显示通行证昵称与米游社 UID：用户资料接口改为携带完整登录态，昵称优先取用户资料（account_name、nickname 兜底），UID 取账号 ID，账号列表正确呈现「昵称（米游社 UID）」，不再只显示占位名。(๑•̀ㅂ•́)و✧",
@@ -173,7 +178,7 @@ public sealed class ChangelogWindow : Window
         });
         header.Children.Add(new TextBlock
         {
-            Text = "MikoNest 从首个公开版本到 0.1.35 的更新与修复记录",
+            Text = "MikoNest 从首个公开版本到 0.1.36 的更新与修复记录",
             FontSize = 12,
             Margin = new Thickness(0, 5, 0, 0),
             Foreground = (Brush)Application.Current.Resources["TextSecondary"],

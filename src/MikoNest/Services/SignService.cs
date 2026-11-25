@@ -114,19 +114,27 @@ public static class SignService
     /// 仅当两条链路都返回登录失效类 retcode 时才提示凭证过期；其余错误如实透出 message/retcode，不再笼统误判。</summary>
     public static async Task<RolesResult> GetAllRolesAsync(string cookie)
     {
+        // 先用 stoken 走 V2 换票补齐缺失的 cookie_token / ltoken，避免刚登录或旧账号误判过期。
+        try
+        {
+            var refreshed = await AccountService.RefreshCookieAsync(cookie);
+            if (!string.IsNullOrEmpty(refreshed)) cookie = refreshed;
+        }
+        catch { }
+
         var roles = new List<SignRole>();
         var seen = new HashSet<string>();
         var lastRetcode = 0;
         var lastMessage = "";
         var sawExpired = false;
 
-        // 1) cookie_token 链路（getUserGameRolesByCookie，对齐 TeyvatGuide takumiReq.getUserGameRolesByCookie）
-        var ck = SubCookie(cookie, "account_id", "cookie_token");
-        if (!string.IsNullOrEmpty(CookieValue(ck, "cookie_token")))
+        // 1) takumi 角色链路（对齐 MikoMiko GetGameRolesAsync）：完整 Cookie、不带 DS，逐款游戏循环
+        var roleHeaders = BuildTakumiRoleHeader(cookie);
+        foreach (var game in Games.Where(g => g.CheckinEnabled && !string.IsNullOrEmpty(g.GameBiz)))
         {
-            var headers = BuildHeader(ck, "GET", "", MiHoYoHttp.X4Salt, isSign: false);
             var api = await MiHoYoHttp.SendWithHeadersAsync("GET",
-                $"{TakumiApi}/binding/api/getUserGameRolesByCookie", null, headers);
+                $"{TakumiApi}/binding/api/getUserGameRolesByCookie?game_biz={game.GameBiz}",
+                null, roleHeaders);
             lastRetcode = api.Retcode;
             lastMessage = api.Message;
             if (api.Retcode == 0 && api.Data is { } d)
@@ -521,6 +529,23 @@ public static class SignService
             dict[s[..eq].Trim()] = s[(eq + 1)..].Trim();
         }
         return string.Concat(dict.Select(kv => $"{kv.Key}={kv.Value};"));
+    }
+
+    /// <summary>
+    /// takumi 角色链路请求头（对齐 MikoMiko GetGameRolesAsync）：完整 Cookie、不签 DS，
+    /// PC UA / app_version / client_type 5 / hyperion 标识 / webstatic referer。
+    /// </summary>
+    private static Dictionary<string, string> BuildTakumiRoleHeader(string cookie)
+    {
+        return new Dictionary<string, string>
+        {
+            ["user-agent"] = PcUa,
+            ["x-rpc-app_version"] = AppVersion,
+            ["x-rpc-client_type"] = "5",
+            ["x-requested-with"] = "com.mihoyo.hyperion",
+            ["referer"] = "https://webstatic.mihoyo.com",
+            ["cookie"] = TransCookie(cookie),
+        };
     }
 
     /// <summary>
