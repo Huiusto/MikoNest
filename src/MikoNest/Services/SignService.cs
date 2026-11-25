@@ -89,7 +89,8 @@ public static class SignService
         => retcode == -100 || retcode == -2000 || retcode == 10001 || retcode == 1004;
 
     public static bool HasStoken(string cookie) => !string.IsNullOrEmpty(CookieValue(cookie, "stoken"));
-    public static bool HasCookieToken(string cookie) => !string.IsNullOrEmpty(CookieValue(cookie, "cookie_token"));
+    public static bool HasCookieToken(string cookie)
+        => !string.IsNullOrEmpty(CookieValue(cookie, "cookie_token")) || !string.IsNullOrEmpty(CookieValue(cookie, "cookie_token_v2"));
 
     public static string CookieValue(string cookie, string key)
     {
@@ -127,6 +128,12 @@ public static class SignService
         var lastRetcode = 0;
         var lastMessage = "";
         var sawExpired = false;
+        var details = new List<string>();
+
+        // 凭证齐全情况（只记有无，不回显凭证值），便于在日志里判断是缺 cookie_token 还是接口拒绝
+        var credState = $"凭证：stoken={(HasStoken(cookie) ? "✓" : "✗")} " +
+                        $"cookie_token={(HasCookieToken(cookie) ? "✓" : "✗")} " +
+                        $"ltoken={(HasLtoken(cookie) ? "✓" : "✗")}";
 
         // 1) takumi 角色链路（对齐 MikoMiko GetGameRolesAsync）：完整 Cookie、不带 DS，逐款游戏循环
         var roleHeaders = BuildTakumiRoleHeader(cookie);
@@ -139,7 +146,11 @@ public static class SignService
             lastMessage = api.Message;
             if (api.Retcode == 0 && api.Data is { } d)
                 MergeRoles(roles, seen, ParseRoleList(d));
-            else if (IsLoginExpired(api.Retcode)) sawExpired = true;
+            else
+            {
+                details.Add($"{game.Name}({game.GameBiz})：{api.Message}（{api.Retcode}）");
+                if (IsLoginExpired(api.Retcode)) sawExpired = true;
+            }
         }
 
         // 2) Starward CookieToken 链路（getUserGameRolesByCookieToken，完整 Cookie、无 DS，逐款游戏循环）
@@ -157,6 +168,7 @@ public static class SignService
             {
                 lastRetcode = api.Retcode;
                 lastMessage = api.Message;
+                details.Add($"{game.Name}-备用链路：{api.Message}（{api.Retcode}）");
                 if (IsLoginExpired(api.Retcode)) sawExpired = true;
             }
         }
@@ -164,13 +176,20 @@ public static class SignService
         if (roles.Count > 0)
             return new RolesResult(roles, null, 0, false);
 
+        // 取一条最有代表性的原始返回写入日志；凭证状态一并带上，避免笼统判定为过期
+        var detail = details.FirstOrDefault();
+        var suffix = string.IsNullOrEmpty(detail) ? credState : $"{credState}；{detail}";
+
         // 不把账号标记为全局失效：LoginExpired 保持 false，仅在错误文案上区分过期 / 其他原因
         if (sawExpired)
-            return new RolesResult(roles, "暂无法获取游戏角色：登录凭证可能已过期，请到「账号」页重新登录", lastRetcode, false);
+            return new RolesResult(roles, $"暂无法获取游戏角色：登录凭证可能已过期，请到「账号」页重新登录。{suffix}", lastRetcode, false);
 
-        var err = string.IsNullOrEmpty(lastMessage) ? "未获取到绑定游戏角色" : $"{lastMessage}（{lastRetcode}）";
+        var err = string.IsNullOrEmpty(lastMessage) ? $"未获取到绑定游戏角色。{suffix}" : $"{lastMessage}（{lastRetcode}）。{suffix}";
         return new RolesResult(roles, err, lastRetcode, false);
     }
+
+    private static bool HasLtoken(string cookie)
+        => !string.IsNullOrEmpty(CookieValue(cookie, "ltoken")) || !string.IsNullOrEmpty(CookieValue(cookie, "ltoken_v2"));
 
     /// <summary>按 game_biz+uid 合并去重角色列表。</summary>
     private static void MergeRoles(List<SignRole> roles, HashSet<string> seen, List<SignRole> incoming)

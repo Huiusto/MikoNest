@@ -13,6 +13,11 @@ public sealed class ChangelogWindow : Window
 
     private static readonly Entry[] Entries =
     {
+        new("0.1.38", "2026-11-25", new[]
+        {
+            "修复换票响应嵌套 token 被当成 JSON 原文写入 Cookie 的问题：exchange / getTokenBySToken 返回的 token 无论是字符串还是 { token: \"...\" } 嵌套对象，都正确取到纯凭证；历史上被写坏的 cookie_token / ltoken 会在下次刷新时识别为无效并重新换票，不再带着无效凭证请求角色接口。(๑•̀ㅂ•́)و✧",
+            "角色拉取日志补齐诊断：逐款游戏透出原始 retcode 与消息，并标注 stoken / cookie_token / ltoken 凭证齐全情况，便于定位是缺凭证还是接口风控，不再笼统提示「登录凭证可能已过期」；换票请求头 SDK/账号版本对齐已验证参考实现。(＾▽＾)",
+        }),
         new("0.1.37", "2026-11-25", new[]
         {
             "重调扫码登录数据获取（对照 MikoMiko / TeyvatGuide / Starward）：二维码生成与轮询请求头版本升至 2.119.0、补齐 app.mihoyo.com referer；登录确认响应改为 JSON 字段优先、响应 Set-Cookie 兜底解析账号 ID / mid / stoken / cookie_token / ltoken；token 类型标记缺失时回退取首个 token，减少「登录凭证解析失败」。(๑•̀ㅂ•́)و✧",
@@ -183,7 +188,7 @@ public sealed class ChangelogWindow : Window
         });
         header.Children.Add(new TextBlock
         {
-            Text = "MikoNest 从首个公开版本到 0.1.37 的更新与修复记录",
+            Text = "MikoNest 从首个公开版本到 0.1.38 的更新与修复记录",
             FontSize = 12,
             Margin = new Thickness(0, 5, 0, 0),
             Foreground = (Brush)Application.Current.Resources["TextSecondary"],

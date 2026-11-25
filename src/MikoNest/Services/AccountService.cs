@@ -261,6 +261,18 @@ public static class AccountService
         return "";
     }
 
+    /// <summary>凭证值是否有效。换票解析异常时可能把嵌套对象的 JSON 原文（含 { } " 或换行）写进凭证，
+    /// 这种值对接口等同于无效，应视为缺失并重新换票。</summary>
+    private static bool IsValidToken(string? v)
+    {
+        if (string.IsNullOrWhiteSpace(v)) return false;
+        foreach (var ch in v)
+        {
+            if (ch is '{' or '}' or '"' or '\n' or '\r') return false;
+        }
+        return true;
+    }
+
     // ---------- 二维码登录 ----------
     // 2025+ 米游社通行证新接口：account/ma-cn-passport（旧 /account/auth/api/web/createQrCode 已下线，返回 404）
 
@@ -273,6 +285,8 @@ public static class AccountService
     private const string BbsVersion = "2.115.0";
     // 短信验证码链路对齐米游社 App 2.119.0（旧版 2.115.0 会被通行证收紧）
     private const string CaptchaVersion = "2.119.0";
+    // 通行证换票（exchange）SDK/账号版本，口径对齐 MikoMiko 已验证实现
+    private const string PassportSdkVersion = "2.44.0";
     private const string MobileUa = "Mozilla/5.0 (Linux; Android 12) Mobile miHoYoBBS/2.119.0";
     private const string AppId = "bll8iq97cem8";
     // 仿 TeyvatGuide toolFunc.ts getInitDeviceInfo：device_name=12 位、device_model=6 位随机大写数字
@@ -453,6 +467,10 @@ public static class AccountService
             try { ltoken = await GetLTokenAsync(mid, aid, stoken, stokenV2); } catch { }
         }
 
+        // 过滤解析异常残留的 JSON 原文凭证，无效项按缺失处理，交由后续刷新链路重新换票。
+        if (!IsValidToken(cookieToken)) cookieToken = "";
+        if (!IsValidToken(ltoken)) ltoken = "";
+
         // cookie_token 缺失不再阻断登录：stoken 有效的账号仍可用于查询/签到，缺失项由后续接口按需补齐。
         var built = AssembleCookie(aid, mid, stoken, ltoken, cookieToken, accountName, stokenV2);
         var message = string.IsNullOrEmpty(cookieToken)
@@ -527,9 +545,11 @@ public static class AccountService
         if (string.IsNullOrEmpty(aid) || string.IsNullOrEmpty(mid) || string.IsNullOrEmpty(stoken)) return null;
 
         var cookieToken = CookieGet(cookie, "cookie_token");
-        if (string.IsNullOrEmpty(cookieToken)) cookieToken = CookieGet(cookie, "cookie_token_v2");
+        if (!IsValidToken(cookieToken)) cookieToken = CookieGet(cookie, "cookie_token_v2");
+        if (!IsValidToken(cookieToken)) cookieToken = "";
         var ltoken = CookieGet(cookie, "ltoken");
-        if (string.IsNullOrEmpty(ltoken)) ltoken = CookieGet(cookie, "ltoken_v2");
+        if (!IsValidToken(ltoken)) ltoken = CookieGet(cookie, "ltoken_v2");
+        if (!IsValidToken(ltoken)) ltoken = "";
         var accountName = CookieGet(cookie, "account_name");
         var stokenV2 = CookieGet(cookie, "stoken_v2");
 
@@ -537,12 +557,12 @@ public static class AccountService
         if (string.IsNullOrEmpty(cookieToken))
         {
             var exchanged = await ExchangeTokenAsync(stoken, mid, 4);
-            if (!string.IsNullOrEmpty(exchanged)) { cookieToken = exchanged; changed = true; }
+            if (IsValidToken(exchanged)) { cookieToken = exchanged; changed = true; }
         }
         if (string.IsNullOrEmpty(ltoken))
         {
             var exchanged = await ExchangeTokenAsync(stoken, mid, 2);
-            if (!string.IsNullOrEmpty(exchanged)) { ltoken = exchanged; changed = true; }
+            if (IsValidToken(exchanged)) { ltoken = exchanged; changed = true; }
         }
         return changed ? AssembleCookie(aid, mid, stoken, ltoken, cookieToken, accountName, stokenV2) : null;
     }
@@ -555,13 +575,7 @@ public static class AccountService
         var headers = BuildAppLoginHeaders(aid, mid, $"stoken={stokenV1}", body);
         var api = await MiHoYoHttp.SendWithHeadersAsync("POST", url, body, headers);
         if (api.Retcode != 0 || api.Data == null) return "";
-        var data = api.Data.Value;
-        if (data.TryGetProperty("token", out var token))
-        {
-            var v = token.GetProp("token");
-            if (!string.IsNullOrEmpty(v)) return v;
-        }
-        return data.GetProp("token");
+        return api.Data.Value.GetStringProp("token");
     }
 
     /// <summary>通行证 V2 换票：stoken（token_type=1）换 ltoken_v2（dst=2）/ cookie_token_v2（dst=4）。
@@ -589,8 +603,8 @@ public static class AccountService
             ["x-rpc-app_id"] = AppId,
             ["x-rpc-game_biz"] = "bbs_cn",
             ["x-rpc-sys_version"] = "12",
-            ["x-rpc-sdk_version"] = CaptchaVersion,
-            ["x-rpc-account_version"] = CaptchaVersion,
+            ["x-rpc-sdk_version"] = PassportSdkVersion,
+            ["x-rpc-account_version"] = PassportSdkVersion,
             ["x-rpc-lifecycle_id"] = LifecycleId,
             ["x-rpc-device_id"] = DeviceId,
             ["x-rpc-device_name"] = DeviceName,
@@ -599,11 +613,9 @@ public static class AccountService
         var api = await MiHoYoHttp.SendWithHeadersAsync("POST",
             "https://passport-api.mihoyo.com/account/ma-cn-session/app/exchange", body, headers);
         if (api.Retcode != 0 || api.Data == null) return "";
-        var token = api.Data.Value.GetProp("token");
-        if (string.IsNullOrEmpty(token) &&
-            api.Data.Value.TryGetProperty("token", out var tokObj) && tokObj.ValueKind == JsonValueKind.Object)
-            token = tokObj.GetProp("token");
-        return token;
+        // data.token 可能是字符串，也可能是嵌套对象 { token: "..." }；统一用字符串安全读取，
+        // 避免对象被序列化成 JSON 原文当成 cookie_token / ltoken 写入 Cookie。
+        return api.Data.Value.GetStringProp("token");
     }
 
     /// <summary>stoken 换取 cookie_token（通行证接口，需 uid 参数 + X4 DS + stuid/mid/stoken Cookie）</summary>

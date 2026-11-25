@@ -234,4 +234,22 @@ public static class JsonExtensions
 {
     public static string GetProp(this JsonElement el, string name)
         => el.TryGetProperty(name, out var v) && v.ValueKind != JsonValueKind.Null ? v.ToString() : "";
+
+    /// <summary>
+    /// 取字符串字段。与 <see cref="GetProp"/> 不同：对象/数组类型绝不返回 JSON 原文，
+    /// 避免换票响应里嵌套的 token 对象（{ "token": "..." }）被序列化成 JSON 串当成凭证写进 Cookie；
+    /// 若值为对象且内含 token 字符串，则取内层 token。
+    /// </summary>
+    public static string GetStringProp(this JsonElement el, string name)
+    {
+        if (!el.TryGetProperty(name, out var v) || v.ValueKind == JsonValueKind.Null) return "";
+        switch (v.ValueKind)
+        {
+            case JsonValueKind.String: return v.GetString() ?? "";
+            case JsonValueKind.Number: return v.GetRawText();
+            case JsonValueKind.Object when v.TryGetProperty("token", out var inner) && inner.ValueKind == JsonValueKind.String:
+                return inner.GetString() ?? "";
+            default: return "";
+        }
+    }
 }
