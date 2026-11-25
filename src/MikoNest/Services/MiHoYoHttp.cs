@@ -147,6 +147,25 @@ public static class MiHoYoHttp
         }
     }
 
+    /// <summary>下载远程图片字节（账号头像等），失败返回 null。</summary>
+    public static async Task<byte[]?> DownloadBytesAsync(string url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return null;
+        try
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Get, url);
+            req.Headers.TryAddWithoutValidation("User-Agent", UserAgent);
+            req.Headers.TryAddWithoutValidation("Referer", "https://www.miyoushe.com/");
+            using var resp = await Client.SendAsync(req);
+            if (!resp.IsSuccessStatusCode) return null;
+            return await resp.Content.ReadAsByteArrayAsync();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     /// <summary>
     /// 按给定请求头发送请求（不加默认 DS），用于通行证新接口（扫码/验证码，X4 DS 由调用方计算）。
     /// 若响应头带 x-rpc-aigis（米哈游极验风控挑战），会写入 ApiResponse.Aigis。

@@ -17,7 +17,7 @@ MikoNest 是一个**全部页面都在软件内部展示**的桌面应用：把�
 
 | 平台 | 文件 |
 | --- | --- |
-| Windows 10/11 x64 | `MikoNest-Setup-0.1.39.exe`（安装程序） |
+| Windows 10/11 x64 | `MikoNest-Setup-0.1.40.exe`（安装程序） |
 | macOS Apple Silicon | `MikoNest-<version>-osx-arm64.zip` |
 | macOS Intel | `MikoNest-<version>-osx-x64.zip` |
 
@@ -141,7 +141,7 @@ MikoNest 的多个功能在交互与思路上参考了以下开源项目，实�
 同时感谢米哈游官方启动器公开的 `hyp-connect` 接口与社区维护的接口文档。
 ## 平台支持
 
-- **Windows 10/11（x64）**：主版本，WPF + WebView2 + .NET 9，自包含发布，无需安装 .NET 运行时。下载 `MikoNest-Setup-0.1.39.exe` 安装包即可。
+- **Windows 10/11（x64）**：主版本，WPF + WebView2 + .NET 9，自包含发布，无需安装 .NET 运行时。下载 `MikoNest-Setup-0.1.40.exe` 安装包即可。
 - **macOS 11+**：Avalonia 11 跨平台版，提供 Apple Silicon（arm64）与 Intel（x64）两个 `.app` 包，功能为启动页、抽卡统计、设置、账号 / 任务 / 米哈游相关入口。与 Windows 版共用 `settings.json`、`gacha_records.json` 结构。未做代码签名，首次运行需在终端执行 `xattr -cr MikoNest.app` 与 `chmod +x MikoNest.app/Contents/MacOS/MikoNest`，详见 [docs/AVALONIA-macOS.md](docs/AVALONIA-macOS.md)。
 - **跨平台版当前差异**：`.webm` 动态壁纸暂以静态封面呈现；游戏内抽卡缓存抓取、账号登录 / 签到、预下载进度仍由 Windows 版提供。
 

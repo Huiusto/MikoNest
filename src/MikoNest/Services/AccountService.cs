@@ -61,6 +61,7 @@ public static class AccountService
                 Id = a.Id,
                 Nickname = a.Nickname,
                 Uid = a.Uid,
+                AvatarUrl = a.AvatarUrl,
                 IsActive = a.IsActive,
                 LastLogin = a.LastLogin,
                 CookieEncrypted = Encrypt(a.Cookie) ?? "",
@@ -89,6 +90,7 @@ public static class AccountService
         {
             ex.Nickname = a.Nickname;
             ex.Cookie = a.Cookie;
+            if (!string.IsNullOrEmpty(a.AvatarUrl)) ex.AvatarUrl = a.AvatarUrl;
             ex.LastLogin = DateTime.Now;
             SetActive(ex);
         }
@@ -148,7 +150,7 @@ public static class AccountService
     /// stoken 身份兜底（getActionTicketBySToken，只验 stoken 本身，不依赖角色绑定与 cookie_token）。
     /// 两条链路都失败才判定 Cookie 无效。
     /// 账号列表显示的是通行证身份（昵称 + 米游社 UID=aid），不取游戏角色昵称与 game_uid。</summary>
-    public static async Task<(bool ok, string nickname, string uid, string message, string? refreshedCookie)> ValidateCookieAsync(string cookie)
+    public static async Task<(bool ok, string nickname, string uid, string avatarUrl, string message, string? refreshedCookie)> ValidateCookieAsync(string cookie)
     {
         // 先把已保存但缺 cookie_token/ltoken 的 stoken-only 账号用 V2 换票补齐，无需重新扫码。
         string? refreshed = null;
@@ -165,8 +167,8 @@ public static class AccountService
             null, BuildValidateHeaders(cookie));
         if (api.Retcode == 0 && api.Data != null)
         {
-            var (nickname, uid) = await ResolveIdentityAsync(cookie);
-            return (true, nickname, uid, "ok", cookie);
+            var (nickname, uid, avatar) = await ResolveIdentityAsync(cookie);
+            return (true, nickname, uid, avatar, "ok", cookie);
         }
         var lastError = $"{api.Message}（{api.Retcode}）";
 
@@ -184,19 +186,19 @@ public static class AccountService
                 null, BuildPlainStokenHeaders(mid3, aid3, stoken3));
             if (at.Retcode == 0)
             {
-                var (nickname3, uid3) = await ResolveIdentityAsync(cookie);
-                return (true, nickname3, string.IsNullOrEmpty(uid3) ? aid3 : uid3, "ok", cookie);
+                var (nickname3, uid3, avatar3) = await ResolveIdentityAsync(cookie);
+                return (true, nickname3, string.IsNullOrEmpty(uid3) ? aid3 : uid3, avatar3, "ok", cookie);
             }
             lastError = $"{at.Message}（{at.Retcode}）";
         }
 
-        return (false, "", "", lastError, refreshed);
+        return (false, "", "", "", lastError, refreshed);
     }
 
     /// <summary>取通行证昵称与米游社 UID（bbs-api getUserFullInfo，对齐 TeyvatGuide）。
     /// 失败时回退 Cookie 里的 account_id/stuid/ltuid 作为米游社 UID，昵称用占位；
     /// 绝不使用任一绑定游戏角色的昵称 / game_uid。</summary>
-    private static async Task<(string nickname, string uid)> ResolveIdentityAsync(string cookie)
+    private static async Task<(string nickname, string uid, string avatarUrl)> ResolveIdentityAsync(string cookie)
     {
         var aid = CookieGet(cookie, "account_id");
         if (string.IsNullOrEmpty(aid)) aid = CookieGet(cookie, "stuid");
@@ -223,8 +225,9 @@ public static class AccountService
                 if (string.IsNullOrEmpty(nickname)) nickname = ui.GetProp("account_name");
                 var uid = ui.GetProp("uid");
                 if (string.IsNullOrEmpty(uid)) uid = aid;
+                var avatar = ui.GetProp("avatar_url");
                 if (string.IsNullOrEmpty(nickname)) nickname = CookieGet(cookie, "account_name");
-                return (string.IsNullOrEmpty(nickname) ? "米游社用户" : nickname, uid);
+                return (string.IsNullOrEmpty(nickname) ? "米游社用户" : nickname, uid, avatar);
             }
         }
         catch
@@ -232,7 +235,7 @@ public static class AccountService
             // 身份信息拉取失败不阻断建号，走 Cookie 内 aid / account_name 兜底
         }
         var fallbackName = CookieGet(cookie, "account_name");
-        return (string.IsNullOrEmpty(fallbackName) ? "米游社用户" : fallbackName, aid);
+        return (string.IsNullOrEmpty(fallbackName) ? "米游社用户" : fallbackName, aid, "");
     }
 
     /// <summary>takumi 校验接口请求头（带 Cookie，无需 DS）</summary>

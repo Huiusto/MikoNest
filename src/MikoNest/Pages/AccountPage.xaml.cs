@@ -12,7 +12,7 @@ using QRCoder;
 namespace MiNest.Pages;
 
 /// <summary>账号列表条目（显示名 + 是否当前账号 + 登录态是否完整）</summary>
-public sealed record AccountEntry(Account Acc, string Display, bool IsActive, bool HasStoken);
+public sealed record AccountEntry(Account Acc, string Display, bool IsActive, bool HasStoken, string AvatarUrl);
 
 /// <summary>
 /// 账号管理（独立导航，仿 TeyvatGuide 登录）：
@@ -52,7 +52,7 @@ public partial class AccountPage : UserControl
     {
         var items = AccountService.All
             .Select(a => new AccountEntry(a, a.DisplayName, ReferenceEquals(a, AccountService.Active),
-                a.Cookie.Contains("stoken", StringComparison.OrdinalIgnoreCase)))
+                a.Cookie.Contains("stoken", StringComparison.OrdinalIgnoreCase), a.AvatarUrl))
             .ToList();
         AccountList.ItemsSource = null;
         AccountList.ItemsSource = items;
@@ -62,6 +62,40 @@ public partial class AccountPage : UserControl
         TxtAccountCount.Text = items.Count > 0 ? $"{items.Count} 个账号" : "尚未添加账号";
         // 登录态不完整（缺 stoken）的账号无法使用抽卡记录 / 签到，提示用户重新登录
         TxtStokenHint.Visibility = items.Any(x => !x.HasStoken) ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private async void AvatarHost_Loaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Border host) return;
+        if (host.DataContext is not AccountEntry entry) return;
+        var image = host.FindName("AvatarImage") as Image;
+        var fallback = host.FindName("AvatarFallback") as TextBlock;
+        if (image == null || fallback == null) return;
+
+        fallback.Text = string.IsNullOrEmpty(entry.Display) ? "?" : entry.Display[..1];
+        if (!string.IsNullOrEmpty(entry.AvatarUrl) && image.Source == null)
+        {
+            var bytes = await MiHoYoHttp.DownloadBytesAsync(entry.AvatarUrl);
+            if (bytes is { Length: > 0 })
+            {
+                try
+                {
+                    using var ms = new MemoryStream(bytes);
+                    var bmp = new BitmapImage();
+                    bmp.BeginInit();
+                    bmp.CacheOption = BitmapCacheOption.OnLoad;
+                    bmp.StreamSource = ms;
+                    bmp.EndInit();
+                    bmp.Freeze();
+                    image.Source = bmp;
+                    fallback.Visibility = Visibility.Collapsed;
+                }
+                catch
+                {
+                    // 头像解码失败保留首字占位
+                }
+            }
+        }
     }
 
     private void AccountList_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -97,7 +131,7 @@ public partial class AccountPage : UserControl
 
     private async Task<bool> AddAccountByCookieAsync(string cookie, string? source)
     {
-        var (ok, nickname, uid, msg, refreshed) = await AccountService.ValidateCookieAsync(cookie);
+        var (ok, nickname, uid, avatar, msg, refreshed) = await AccountService.ValidateCookieAsync(cookie);
         if (!ok)
         {
             (source switch
@@ -111,7 +145,7 @@ public partial class AccountPage : UserControl
         }
 
         if (!string.IsNullOrEmpty(refreshed)) cookie = refreshed;
-        AccountService.AddOrUpdate(new Account { Nickname = nickname, Uid = uid, Cookie = cookie });
+        AccountService.AddOrUpdate(new Account { Nickname = nickname, Uid = uid, AvatarUrl = avatar ?? "", Cookie = cookie });
         (source switch
         {
             "扫码" => QrStatus,
@@ -366,14 +400,14 @@ public partial class AccountPage : UserControl
                 ImportStatus.Text = "未在浏览器中找到登录态，请先在「社区 / 视频」页登录米游社。";
                 return;
             }
-            var (vok, nickname, uid, vmsg, vrefreshed) = await AccountService.ValidateCookieAsync(cookie);
+            var (vok, nickname, uid, vavatar, vmsg, vrefreshed) = await AccountService.ValidateCookieAsync(cookie);
             if (!vok)
             {
                 ImportStatus.Text = $"Cookie 无效：{vmsg}";
                 return;
             }
             if (!string.IsNullOrEmpty(vrefreshed)) cookie = vrefreshed;
-            AccountService.AddOrUpdate(new Account { Nickname = nickname, Uid = uid, Cookie = cookie });
+            AccountService.AddOrUpdate(new Account { Nickname = nickname, Uid = uid, AvatarUrl = vavatar ?? "", Cookie = cookie });
             ImportStatus.Text = $"已导入账号：{nickname}（{uid}）";
             RefreshList();
         }

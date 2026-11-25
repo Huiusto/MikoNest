@@ -13,21 +13,21 @@ Unicode true
 
 ; ---------------- 基本设置 ----------------
 Name "MikoNest"
-OutFile "C:\Users\35847\Doubao\chats\2026-10-13\new-chat\MikoNest-Setup-0.1.39.exe"
+OutFile "C:\Users\35847\Doubao\chats\2026-10-13\new-chat\MikoNest-Setup-0.1.40.exe"
 InstallDir "$PROGRAMFILES64\MikoNest"
 InstallDirRegKey HKLM "Software\MikoNest" "InstallDir"
 RequestExecutionLevel admin
 SetCompressor /SOLID lzma
 
 !define APP_NAME "MikoNest"
-!define APP_VERSION "0.1.39"
+!define APP_VERSION "0.1.40"
 !define APP_PUBLISHER "MikoNest Contributors"
 
-VIProductVersion "0.1.39.0"
+VIProductVersion "0.1.40.0"
 VIAddVersionKey "ProductName" "MikoNest"
 VIAddVersionKey "FileDescription" "MikoNest 安装程序"
-VIAddVersionKey "FileVersion" "0.1.39"
-VIAddVersionKey "ProductVersion" "0.1.39"
+VIAddVersionKey "FileVersion" "0.1.40"
+VIAddVersionKey "ProductVersion" "0.1.40"
 VIAddVersionKey "LegalCopyright" "MikoNest Contributors"
 
 ; ---------------- 图标 ----------------

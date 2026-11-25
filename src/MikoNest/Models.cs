@@ -98,6 +98,8 @@ public class Account
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
     public string Nickname { get; set; } = "";
     public string Uid { get; set; } = "";
+    /// <summary>米游社头像 URL（getUserFullInfo avatar_url），可空</summary>
+    public string AvatarUrl { get; set; } = "";
     public string CookieEncrypted { get; set; } = "";
     public bool IsActive { get; set; }
     public DateTime LastLogin { get; set; } = DateTime.Now;

@@ -34,12 +34,24 @@
                         <DataTemplate>
                             <Grid>
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Text="{Binding Display}" VerticalAlignment="Center"/>
-                                <TextBlock Grid.Column="1" Text="✓ 当前" FontSize="11" VerticalAlignment="Center"
+                                <Border Grid.Column="0" x:Name="AvatarHost" Width="34" Height="34"
+                                        CornerRadius="17" Background="#2A3140" ClipToBounds="True"
+                                        VerticalAlignment="Center" Margin="0,0,10,0"
+                                        Loaded="AvatarHost_Loaded">
+                                    <Grid>
+                                        <Image x:Name="AvatarImage" Stretch="UniformToFill"/>
+                                        <TextBlock x:Name="AvatarFallback" FontSize="14" FontWeight="Bold"
+                                                   Foreground="#C9D1D9" HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Border>
+                                <TextBlock Grid.Column="1" Text="{Binding Display}" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="2" Text="✓ 当前" FontSize="11" VerticalAlignment="Center"
                                            Margin="10,0,0,0">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
@@ -53,7 +65,7 @@
                                         </Style>
                                     </TextBlock.Style>
                                 </TextBlock>
-                                <StackPanel Grid.Column="2" Margin="10,0,0,0" VerticalAlignment="Center">
+                                <StackPanel Grid.Column="3" Margin="10,0,0,0" VerticalAlignment="Center">
                                     <TextBlock Text="⚠ 缺 stoken" FontSize="10.5" Foreground="#E6A23C"
                                                ToolTip="缺少 stoken，抽卡记录 / 签到不可用，请重新登录">
                                         <TextBlock.Style>
