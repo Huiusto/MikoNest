@@ -39,6 +39,7 @@ public static class SignService
     public const int DefaultGid = 2;                       // 米游币任务默认板块（原神）
     private const string BbsApi = "https://bbs-api.miyoushe.com";
     private const string TakumiApi = "https://api-takumi.mihoyo.com";
+    private const string PassportApi = "https://passport-api.mihoyo.com";
     private const string LunaApi = "https://api-takumi.mihoyo.com/event/luna";
     private const string AppVersion = "2.119.0";
     private const string MobileUa = "Mozilla/5.0 (Linux; Android 12) Mobile miHoYoBBS/2.119.0";
@@ -106,41 +107,72 @@ public static class SignService
 
     // ---------- 角色 ----------
 
-    /// <summary>拉取该账号绑定过的全部游戏角色：优先 stoken 链路（getUserGameRolesByStoken，DS1/K2），
-    /// 不依赖可能过期的 cookie_token；失败再回退 cookie_token 链路。</summary>
+    /// <summary>拉取该账号绑定过的全部游戏角色，依次尝试两条参考实现链路并合并去重：
+    /// 1) TeyvatGuide cookie_token 链路：api-takumi getUserGameRolesByCookie（X4 DS2，client_type 5）；
+    /// 2) Starward CookieToken 链路：passport-api getUserGameRolesByCookieToken，按 game_biz 循环，完整 Cookie、不签 DS，
+    ///    兼容扫码 / 短信登录后只带回 stoken、cookie_token 暂未换取成功的账号。
+    /// 仅当两条链路都返回登录失效类 retcode 时才提示凭证过期；其余错误如实透出 message/retcode，不再笼统误判。</summary>
     public static async Task<RolesResult> GetAllRolesAsync(string cookie)
     {
-        // 1) stoken 链路：stoken 长期有效，DS1(K2) + client_type 2
-        if (HasStoken(cookie))
+        var roles = new List<SignRole>();
+        var seen = new HashSet<string>();
+        var lastRetcode = 0;
+        var lastMessage = "";
+        var sawExpired = false;
+
+        // 1) cookie_token 链路（getUserGameRolesByCookie，对齐 TeyvatGuide takumiReq.getUserGameRolesByCookie）
+        var ck = SubCookie(cookie, "account_id", "cookie_token");
+        if (!string.IsNullOrEmpty(CookieValue(ck, "cookie_token")))
         {
-            var stCookie = SubCookie(cookie, "stoken", "stuid", "ltuid", "account_id", "mid");
-            var headers = BuildStokenHeader(stCookie, "GET", "");
+            var headers = BuildHeader(ck, "GET", "", MiHoYoHttp.X4Salt, isSign: false);
             var api = await MiHoYoHttp.SendWithHeadersAsync("GET",
-                "https://api-takumi.miyoushe.com/binding/api/getUserGameRolesByStoken", null, headers);
-            if (api.Retcode == 0 && api.Data is { } data)
-                return new RolesResult(ParseRoleList(data), null, 0, false);
-            // stoken 链路失败（风控/接口变动）时继续尝试 cookie_token 链路，不在此处判全局失效
+                $"{TakumiApi}/binding/api/getUserGameRolesByCookie", null, headers);
+            lastRetcode = api.Retcode;
+            lastMessage = api.Message;
+            if (api.Retcode == 0 && api.Data is { } d)
+                MergeRoles(roles, seen, ParseRoleList(d));
+            else if (IsLoginExpired(api.Retcode)) sawExpired = true;
         }
 
-        // 2) cookie_token 回退链路（getUserGameRolesByCookie）
-        var ck = SubCookie(cookie, "account_id", "cookie_token");
-        if (string.IsNullOrEmpty(CookieValue(ck, "cookie_token")))
-            return new RolesResult(new List<SignRole>(), "暂无法获取游戏角色：登录凭证可能已过期，请到「账号」页重新登录", -1, false);
+        // 2) Starward CookieToken 链路（getUserGameRolesByCookieToken，完整 Cookie、无 DS，逐款游戏循环）
+        var tokenHeaders = BuildCookieTokenHeader(cookie);
+        foreach (var game in Games.Where(g => g.CheckinEnabled && !string.IsNullOrEmpty(g.GameBiz)))
+        {
+            var api = await MiHoYoHttp.SendWithHeadersAsync("GET",
+                $"{PassportApi}/binding/api/getUserGameRolesByCookieToken?game_biz={game.GameBiz}",
+                null, tokenHeaders);
+            if (api.Retcode == 0 && api.Data is { } d)
+            {
+                MergeRoles(roles, seen, ParseRoleList(d));
+            }
+            else
+            {
+                lastRetcode = api.Retcode;
+                lastMessage = api.Message;
+                if (IsLoginExpired(api.Retcode)) sawExpired = true;
+            }
+        }
 
-        var headers2 = BuildHeader(ck, "GET", "", MiHoYoHttp.X4Salt, isSign: false);
-        var api2 = await MiHoYoHttp.SendWithHeadersAsync("GET",
-            $"{TakumiApi}/binding/api/getUserGameRolesByCookie", null, headers2);
+        if (roles.Count > 0)
+            return new RolesResult(roles, null, 0, false);
 
-        var roles = new List<SignRole>();
-        if (IsLoginExpired(api2.Retcode))
-            // 仅该接口未通过：不把账号标记为全局失效，避免误报“登录状态已失效”
-            return new RolesResult(roles, "暂无法获取游戏角色：登录凭证可能已过期，请到「账号」页重新登录", api2.Retcode, false);
-        if (api2.Retcode != 0)
-            return new RolesResult(roles, $"{api2.Message}（{api2.Retcode}）", api2.Retcode, false);
+        // 不把账号标记为全局失效：LoginExpired 保持 false，仅在错误文案上区分过期 / 其他原因
+        if (sawExpired)
+            return new RolesResult(roles, "暂无法获取游戏角色：登录凭证可能已过期，请到「账号」页重新登录", lastRetcode, false);
 
-        if (api2.Data is { } d2 && d2.TryGetProperty("list", out var list) && list.ValueKind == JsonValueKind.Array)
-            return new RolesResult(ParseRoleList(d2), null, 0, false);
-        return new RolesResult(roles, null, 0, false);
+        var err = string.IsNullOrEmpty(lastMessage) ? "未获取到绑定游戏角色" : $"{lastMessage}（{lastRetcode}）";
+        return new RolesResult(roles, err, lastRetcode, false);
+    }
+
+    /// <summary>按 game_biz+uid 合并去重角色列表。</summary>
+    private static void MergeRoles(List<SignRole> roles, HashSet<string> seen, List<SignRole> incoming)
+    {
+        foreach (var r in incoming)
+        {
+            var key = $"{r.GameBiz}|{r.Uid}";
+            if (string.IsNullOrEmpty(r.Uid) || !seen.Add(key)) continue;
+            roles.Add(r);
+        }
     }
 
     private static List<SignRole> ParseRoleList(JsonElement data)
@@ -492,21 +524,15 @@ public static class SignService
     }
 
     /// <summary>
-    /// stoken 链路请求头（client_type 2，DS1 = K2 salt+t+r，无 body/query）：
-    /// 用于 getUserGameRolesByStoken / sapi getUserMissionsState 等不依赖 cookie_token 的接口。
+    /// CookieToken 链路请求头（对齐 Starward HyperionClient.GetGameRolesAsync）：完整 Cookie、不签 DS，
+    /// 仅 UA + Cookie + Referer（act.mihoyo.com），不带 device / client_type 等附加头。
     /// </summary>
-    private static Dictionary<string, string> BuildStokenHeader(string cookie, string method, string data)
+    private static Dictionary<string, string> BuildCookieTokenHeader(string cookie)
     {
         return new Dictionary<string, string>
         {
-            ["user-agent"] = MobileUa,
-            ["x-rpc-app_version"] = AppVersion,
-            ["x-rpc-client_type"] = "2",
-            ["x-requested-with"] = "com.mihoyo.hyperion",
-            ["referer"] = "https://app.mihoyo.com",
-            ["x-rpc-device_id"] = SettingsService.Settings.DeviceId,
-            ["x-rpc-device_fp"] = MiHoYoHttp.DeviceFp,
-            ["DS"] = MiHoYoHttp.GetDsType1(MiHoYoHttp.K2Salt),
+            ["user-agent"] = PcUa,
+            ["referer"] = "https://act.mihoyo.com/",
             ["cookie"] = TransCookie(cookie),
         };
     }

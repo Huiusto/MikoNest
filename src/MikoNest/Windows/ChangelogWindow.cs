@@ -13,6 +13,11 @@ public sealed class ChangelogWindow : Window
 
     private static readonly Entry[] Entries =
     {
+        new("0.1.35", "2026-11-25", new[]
+        {
+            "账号扫码 / 手机号登录后先显示通行证昵称与米游社 UID：用户资料接口改为携带完整登录态，昵称优先取用户资料（account_name、nickname 兜底），UID 取账号 ID，账号列表正确呈现「昵称（米游社 UID）」，不再只显示占位名。(๑•̀ㅂ•́)و✧",
+            "修复「任务/签到」刚登录账号仍报「暂无法获取游戏角色：登录凭证可能已过期」：角色获取改为两条参考实现链路合并去重——TeyvatGuide cookie_token 链路（getUserGameRolesByCookie，X4 DS2）与 Starward CookieToken 链路（passport-api 按游戏循环、完整 Cookie、不签 DS）；仅两条链路都返回登录失效类错误才提示凭证过期，其余错误透出原始消息与 retcode，不再笼统误判。(＾▽＾)",
+        }),
         new("0.1.34", "2026-11-25", new[]
         {
             "修复扫码与手机号登录后账号仍显示占位昵称的问题：通行证昵称与米游社 UID 改由米游社用户资料接口获取（口径对齐 TeyvatGuide，DS1 签名、仅带 cookie_token+account_id），昵称取不到时回退通行证账号名，账号列表正确显示「昵称（米游社 UID）」。(๑•̀ㅂ•́)و✧",
@@ -168,7 +173,7 @@ public sealed class ChangelogWindow : Window
         });
         header.Children.Add(new TextBlock
         {
-            Text = "MikoNest 从首个公开版本到 0.1.34 的更新与修复记录",
+            Text = "MikoNest 从首个公开版本到 0.1.35 的更新与修复记录",
             FontSize = 12,
             Margin = new Thickness(0, 5, 0, 0),
             Foreground = (Brush)Application.Current.Resources["TextSecondary"],

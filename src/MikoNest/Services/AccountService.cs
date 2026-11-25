@@ -145,8 +145,8 @@ public static class AccountService
 
     /// <summary>校验 Cookie 并取通行证昵称/米游社 UID。
     /// 优先 cookie_token 链路（getUserGameRolesByCookie）；cookie_token 缺失或该链路失效时回退
-    /// stoken 链路（getUserGameRolesByStoken，DS1/K2，client_type 2）——扫码/短信登录拿到的
-    /// stoken 长期有效，不必依赖易失效的 cookie_token。两条链路都失败才判定 Cookie 无效。
+    /// stoken 身份兜底（getActionTicketBySToken，只验 stoken 本身，不依赖角色绑定与 cookie_token）。
+    /// 两条链路都失败才判定 Cookie 无效。
     /// 账号列表显示的是通行证身份（昵称 + 米游社 UID=aid），不取游戏角色昵称与 game_uid。</summary>
     public static async Task<(bool ok, string nickname, string uid, string message)> ValidateCookieAsync(string cookie)
     {
@@ -161,23 +161,8 @@ public static class AccountService
         }
         var lastError = $"{api.Message}（{api.Retcode}）";
 
-        // 2) stoken 链路回退：扫码/短信登录通常只带回 stoken，cookie_token 可能未换取成功
-        if (!string.IsNullOrEmpty(CookieGet(cookie, "stoken")))
-        {
-            var stCookie = SubCookie(cookie, "stoken", "stuid", "ltuid", "account_id", "mid");
-            var api2 = await MiHoYoHttp.SendWithHeadersAsync("GET",
-                "https://api-takumi.miyoushe.com/binding/api/getUserGameRolesByStoken",
-                null, BuildStokenValidateHeaders(stCookie));
-            if (api2.Retcode == 0 && api2.Data != null)
-            {
-                var (nickname2, uid2) = await ResolveIdentityAsync(cookie);
-                return (true, nickname2, uid2, "ok");
-            }
-            lastError = $"{api2.Message}（{api2.Retcode}）";
-        }
-
-        // 3) stoken 身份兜底：getActionTicketBySToken 只验 stoken 本身，不依赖角色绑定与 cookie_token；
-        //    retcode=0 即 stoken 有效，可先建账号，角色由签到页 stoken 链路后续拉取。
+        // 2) stoken 身份兜底：getActionTicketBySToken 只验 stoken 本身，不依赖角色绑定与 cookie_token；
+        //    retcode=0 即 stoken 有效，可先建账号，角色由签到页 CookieToken 链路后续拉取。
         var stoken3 = CookieGet(cookie, "stoken");
         if (!string.IsNullOrEmpty(stoken3))
         {
@@ -210,9 +195,9 @@ public static class AccountService
 
         try
         {
-            // 对齐 TeyvatGuide bbsReq.getUserFullInfo：Cookie 仅 cookie_token+account_id，
-            // DS1（X4 salt&t&r，isSign=true），PC UA / client_type 5 / referer webstatic。
-            var ck = SubCookie(cookie, "cookie_token", "account_id");
+            // 对齐 TeyvatGuide bbsReq.getUserFullInfo：DS1（X4 salt&t&r，isSign=true），
+            // PC UA / client_type 5 / referer webstatic；Cookie 携带完整登录态（Starward 同口径），
+            // 避免子集缺少 ltoken/ltuid/mid 等被接口拒绝。
             const string query = "gids=2";
             var headers = new Dictionary<string, string>
             {
@@ -224,7 +209,7 @@ public static class AccountService
                 ["x-rpc-device_id"] = DeviceId,
                 ["x-rpc-device_fp"] = MiHoYoHttp.DeviceFp,
                 ["DS"] = MiHoYoHttp.GetDsType1(MiHoYoHttp.X4Salt),
-                ["cookie"] = ck,
+                ["cookie"] = cookie,
             };
             var api = await MiHoYoHttp.SendWithHeadersAsync("GET",
                 $"https://bbs-api.miyoushe.com/user/wapi/getUserFullInfo?{query}", null, headers);
@@ -233,6 +218,7 @@ public static class AccountService
                 ui.ValueKind == JsonValueKind.Object)
             {
                 var nickname = ui.GetProp("nickname");
+                if (string.IsNullOrEmpty(nickname)) nickname = ui.GetProp("account_name");
                 var uid = ui.GetProp("uid");
                 if (string.IsNullOrEmpty(uid)) uid = aid;
                 if (string.IsNullOrEmpty(nickname)) nickname = CookieGet(cookie, "account_name");
@@ -261,23 +247,6 @@ public static class AccountService
         };
     }
 
-    /// <summary>stoken 链路校验请求头（对齐 SignService.BuildStokenHeader：client_type 2，DS1=K2 salt+t+r）</summary>
-    private static Dictionary<string, string> BuildStokenValidateHeaders(string stCookie)
-    {
-        return new Dictionary<string, string>
-        {
-            ["user-agent"] = MobileUa,
-            ["x-rpc-app_version"] = MiHoYoHttp.AppVersion,
-            ["x-rpc-client_type"] = "2",
-            ["x-requested-with"] = "com.mihoyo.hyperion",
-            ["referer"] = "https://app.mihoyo.com",
-            ["x-rpc-device_id"] = DeviceId,
-            ["x-rpc-device_fp"] = MiHoYoHttp.DeviceFp,
-            ["DS"] = MiHoYoHttp.GetDsType1(MiHoYoHttp.K2Salt),
-            ["cookie"] = stCookie,
-        };
-    }
-
     private static string CookieGet(string cookie, string key)
     {
         if (string.IsNullOrEmpty(cookie)) return "";
@@ -288,17 +257,6 @@ public static class AccountService
             if (eq > 0 && s[..eq].Trim() == key) return s[(eq + 1)..].Trim();
         }
         return "";
-    }
-
-    private static string SubCookie(string cookie, params string[] keys)
-    {
-        var parts = new List<string>();
-        foreach (var k in keys)
-        {
-            var v = CookieGet(cookie, k);
-            if (!string.IsNullOrEmpty(v)) parts.Add($"{k}={v}");
-        }
-        return string.Join("; ", parts);
     }
 
     // ---------- 二维码登录 ----------
@@ -421,6 +379,8 @@ public static class AccountService
             mid = ui.GetProp("mid");
             aid = ui.GetProp("aid");
             accountName = ui.GetProp("account_name");
+            if (string.IsNullOrEmpty(accountName)) accountName = ui.GetProp("nickname");
+            if (string.IsNullOrEmpty(accountName)) accountName = ui.GetProp("name");
         }
 
         string? stoken = null;
