@@ -271,7 +271,6 @@ public static class AccountService
     private const string ExchangeSalt = "JwYDpKvLj6MrMqqYU6jTKF17KNO2PXoS";
     private static readonly string LifecycleId = Guid.NewGuid().ToString("N");
     private const string BbsVersion = "2.115.0";
-    private const string QrUa = "Mozilla/5.0 miHoYoBBS/2.115.0 Capture/2.2.0";
     // 短信验证码链路对齐米游社 App 2.119.0（旧版 2.115.0 会被通行证收紧）
     private const string CaptchaVersion = "2.119.0";
     private const string MobileUa = "Mozilla/5.0 (Linux; Android 12) Mobile miHoYoBBS/2.119.0";
@@ -313,18 +312,18 @@ public static class AccountService
 
     private static string DeviceId => SettingsService.Settings.DeviceId;
 
-    /// <summary>扫码接口公共请求头（UA 需与米游社 App 一致，扫码得到的 stoken 才能用于米游社）</summary>
+    /// <summary>扫码接口公共请求头（UA 需与米游社 App 一致，扫码得到的 stoken 才能用于米游社；口径对齐 MikoMiko/TeyvatGuide）</summary>
     private static Dictionary<string, string> BuildQrHeaders(string bodyJson)
     {
         var headers = new Dictionary<string, string>
         {
-            ["user-agent"] = QrUa,
+            ["user-agent"] = $"Mozilla/5.0 miHoYoBBS/{CaptchaVersion} Capture/2.2.0",
             ["accept"] = "*/*",
             ["accept-language"] = "zh-cn",
             ["x-rpc-client_type"] = "3",
-            ["x-rpc-app_version"] = BbsVersion,
-            ["x-rpc-sdk_version"] = BbsVersion,
-            ["x-rpc-account_version"] = BbsVersion,
+            ["x-rpc-app_version"] = CaptchaVersion,
+            ["x-rpc-sdk_version"] = CaptchaVersion,
+            ["x-rpc-account_version"] = CaptchaVersion,
             ["x-rpc-app_id"] = AppId,
             ["x-rpc-game_biz"] = "bbs_cn",
             ["x-rpc-device_id"] = DeviceId,
@@ -333,6 +332,7 @@ public static class AccountService
             ["x-rpc-device_model"] = DeviceModel,
             ["DS"] = GetDsX4(bodyJson),
             ["content-type"] = "application/json",
+            ["referer"] = "https://app.mihoyo.com",
         };
         return headers;
     }
@@ -364,7 +364,7 @@ public static class AccountService
             case "Scanned":
                 return (false, "已扫码，请在手机上确认", null);
             case "Confirmed":
-                return await BuildCookieFromLoginDataAsync(api.Data.Value);
+                return await BuildCookieFromLoginDataAsync(api.Data.Value, api.SetCookies);
             default:
                 return (false, $"未知状态：{status}", null);
         }
@@ -379,9 +379,12 @@ public static class AccountService
         return isStoken && tok.TryGetProperty("token", out var tv) && !string.IsNullOrEmpty(tv.GetString());
     }
 
-    /// <summary>把通行证登录响应（tokens + user_info）组装为可用 Cookie（口径同 TeyvatGuide：account_id/stuid/ltuid=aid，mid 独立）</summary>
-    private static async Task<(bool ok, string message, string? cookie)> BuildCookieFromLoginDataAsync(JsonElement data)
+    /// <summary>把通行证登录响应（tokens + user_info，可选响应 Set-Cookie）组装为可用 Cookie。
+    /// 口径对齐 MikoMiko/TeyvatGuide：JSON 字段优先，Set-Cookie 兜底；account_id/stuid/ltuid=aid，mid 独立。</summary>
+    private static async Task<(bool ok, string message, string? cookie)> BuildCookieFromLoginDataAsync(JsonElement data, IReadOnlyList<string>? setCookies = null)
     {
+        var ckMap = ParseSetCookies(setCookies);
+
         var mid = "";
         var aid = "";
         var accountName = "";
@@ -393,40 +396,62 @@ public static class AccountService
             if (string.IsNullOrEmpty(accountName)) accountName = ui.GetProp("nickname");
             if (string.IsNullOrEmpty(accountName)) accountName = ui.GetProp("name");
         }
+        // Set-Cookie 兜底：旧版网站接口可能经响应头下发账号信息
+        if (string.IsNullOrEmpty(aid)) aid = MapGet(ckMap, "account_id", "account_id_v2", "ltuid", "ltuid_v2", "stuid");
+        if (string.IsNullOrEmpty(mid)) mid = MapGet(ckMap, "mid", "ltmid_v2", "account_mid_v2");
+        if (string.IsNullOrEmpty(accountName)) accountName = MapGet(ckMap, "account_name");
 
         string? stoken = null;
+        string? stokenV2 = MapGet(ckMap, "stoken_v2");
         // 扫码登录返回 tokens 数组；短信验证码登录返回单个 token 对象（{token_type, token}），两种结构都要兼容
         if (data.TryGetProperty("tokens", out var tokens) && tokens.ValueKind == JsonValueKind.Array)
         {
+            JsonElement? firstToken = null;
             foreach (var tok in tokens.EnumerateArray())
             {
-                if (IsStokenToken(tok)) stoken = tok.GetProp("token");
+                if (firstToken == null) firstToken = tok;
+                if (IsStokenToken(tok)) { stoken = tok.GetProp("token"); break; }
             }
+            // 类型标记缺失时回退取首个 token（TeyvatGuide 口径：tokens[0].token 即 stoken）
+            if (string.IsNullOrEmpty(stoken) && firstToken.HasValue)
+                stoken = firstToken.Value.GetProp("token");
         }
         else if (data.TryGetProperty("token", out var tokObj) && tokObj.ValueKind == JsonValueKind.Object)
         {
-            if (IsStokenToken(tokObj)) stoken = tokObj.GetProp("token");
+            stoken = tokObj.GetProp("token");
         }
+        // Set-Cookie 兜底 stoken
+        if (string.IsNullOrEmpty(stoken)) stoken = MapGet(ckMap, "stoken", "stoken_v2");
 
         if (string.IsNullOrEmpty(stoken) || string.IsNullOrEmpty(aid) || string.IsNullOrEmpty(mid))
             return (false, "登录凭证解析失败", null);
 
+        // 响应头已下发的凭证直接保留，避免重复换票
+        var cookieToken = MapGet(ckMap, "cookie_token", "cookie_token_v2");
+        var ltoken = MapGet(ckMap, "ltoken", "ltoken_v2");
+
         // 新版通行证要求 SToken v2：先把扫码得到的 v1 stoken 升级为 v2，再用 v2 换 cookie_token。
         // 失败时保留 v1 兼容链路（uid 查询），避免旧链路被单点阻断。
-        var stokenV2 = "";
-        try { stokenV2 = await UpgradeStokenV2Async(mid, aid, stoken); } catch { }
-
-        var cookieToken = "";
-        var ltoken = "";
-        string? tokenError = null;
-        try
+        if (string.IsNullOrEmpty(stokenV2))
         {
-            var r = await GetCookieTokenAsync(mid, aid, stoken, stokenV2);
-            cookieToken = r.token;
-            tokenError = r.error;
+            try { stokenV2 = await UpgradeStokenV2Async(mid, aid, stoken); } catch { }
         }
-        catch (Exception ex) { tokenError = ex.Message; }
-        try { ltoken = await GetLTokenAsync(mid, aid, stoken, stokenV2); } catch { }
+
+        string? tokenError = null;
+        if (string.IsNullOrEmpty(cookieToken))
+        {
+            try
+            {
+                var r = await GetCookieTokenAsync(mid, aid, stoken, stokenV2);
+                cookieToken = r.token;
+                tokenError = r.error;
+            }
+            catch (Exception ex) { tokenError = ex.Message; }
+        }
+        if (string.IsNullOrEmpty(ltoken))
+        {
+            try { ltoken = await GetLTokenAsync(mid, aid, stoken, stokenV2); } catch { }
+        }
 
         // cookie_token 缺失不再阻断登录：stoken 有效的账号仍可用于查询/签到，缺失项由后续接口按需补齐。
         var built = AssembleCookie(aid, mid, stoken, ltoken, cookieToken, accountName, stokenV2);
@@ -434,6 +459,31 @@ public static class AccountService
             ? $"登录成功（stoken 已就绪，cookie_token 暂未获取：{tokenError ?? "接口未返回"}）"
             : "登录成功";
         return (true, message, built);
+    }
+
+    /// <summary>解析响应 Set-Cookie 条目为字典（键忽略大小写，取每条首个 k=v）。</summary>
+    private static Dictionary<string, string> ParseSetCookies(IReadOnlyList<string>? setCookies)
+    {
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (setCookies == null) return map;
+        foreach (var setCookie in setCookies)
+        {
+            if (string.IsNullOrWhiteSpace(setCookie)) continue;
+            var first = setCookie.Split(';')[0];
+            var eq = first.IndexOf('=');
+            if (eq <= 0) continue;
+            var key = first[..eq].Trim();
+            var val = first[(eq + 1)..].Trim();
+            if (!string.IsNullOrEmpty(key)) map[key] = val;
+        }
+        return map;
+    }
+
+    private static string MapGet(Dictionary<string, string> map, params string[] keys)
+    {
+        foreach (var k in keys)
+            if (map.TryGetValue(k, out var v) && !string.IsNullOrEmpty(v)) return v;
+        return "";
     }
 
     /// <summary>按通行证字段组装 Cookie 字符串（account_id/stuid/ltuid=aid，mid 独立，v2 字段成对写入）。</summary>
@@ -817,7 +867,7 @@ public static class AccountService
         var api = await MiHoYoHttp.SendWithHeadersAsync("POST",
             "https://passport-api.mihoyo.com/account/ma-cn-passport/app/loginByMobileCaptcha", body, BuildCaptchaHeaders());
         if (api.Retcode == 0 && api.Data != null)
-            return await BuildCookieFromLoginDataAsync(api.Data.Value);
+            return await BuildCookieFromLoginDataAsync(api.Data.Value, api.SetCookies);
         return (false, SmsFriendlyMessage(api, "登录"), null);
     }
 
@@ -912,7 +962,7 @@ public static class AccountService
             "https://passport-api.mihoyo.com/account/ma-cn-passport/app/loginByMobileCaptcha", body, headers);
         if (api.Retcode == 0 && api.Data != null)
         {
-            var built = await BuildCookieFromLoginDataAsync(api.Data.Value);
+            var built = await BuildCookieFromLoginDataAsync(api.Data.Value, api.SetCookies);
             return (built.ok, built.ok ? "登录成功" : built.message, built.cookie, null);
         }
         var ch = ParseSmsChallenge(api);

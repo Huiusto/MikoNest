@@ -13,6 +13,11 @@ public sealed class ChangelogWindow : Window
 
     private static readonly Entry[] Entries =
     {
+        new("0.1.37", "2026-11-25", new[]
+        {
+            "重调扫码登录数据获取（对照 MikoMiko / TeyvatGuide / Starward）：二维码生成与轮询请求头版本升至 2.119.0、补齐 app.mihoyo.com referer；登录确认响应改为 JSON 字段优先、响应 Set-Cookie 兜底解析账号 ID / mid / stoken / cookie_token / ltoken；token 类型标记缺失时回退取首个 token，减少「登录凭证解析失败」。(๑•̀ㅂ•́)و✧",
+            "短信验证码登录复用同一套凭证解析与 Set-Cookie 兜底；响应头已下发的 cookie_token / ltoken 直接保留，避免重复换票。(＾▽＾)",
+        }),
         new("0.1.36", "2026-11-25", new[]
         {
             "换票链路改为现代通行证 V2 接口（ma-cn-session/app/exchange，stoken 换取 cookie_token_v2 / ltoken_v2），旧换票链路作为兜底；已保存、只带 stoken 的账号在登录校验与任务/签到拉取前会自动换票补齐 cookie_token / ltoken，无需重新扫码。(๑•̀ㅂ•́)و✧",
@@ -178,7 +183,7 @@ public sealed class ChangelogWindow : Window
         });
         header.Children.Add(new TextBlock
         {
-            Text = "MikoNest 从首个公开版本到 0.1.36 的更新与修复记录",
+            Text = "MikoNest 从首个公开版本到 0.1.37 的更新与修复记录",
             FontSize = 12,
             Margin = new Thickness(0, 5, 0, 0),
             Foreground = (Brush)Application.Current.Resources["TextSecondary"],

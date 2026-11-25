@@ -165,6 +165,8 @@ public static class MiHoYoHttp
             var parsed = Parse(raw);
             if (resp.Headers.TryGetValues("x-rpc-aigis", out var aigisValues))
                 parsed.Aigis = string.Join(";", aigisValues);
+            if (resp.Headers.TryGetValues("Set-Cookie", out var setCookieValues))
+                parsed.SetCookies.AddRange(setCookieValues);
             return parsed;
         }
         catch (Exception ex)
@@ -224,6 +226,8 @@ public class ApiResponse
     public JsonElement? Data { get; set; }
     /// <summary>响应头 x-rpc-aigis（极验挑战数据，JSON），非空表示接口要求先完成滑块/图形验证。</summary>
     public string? Aigis { get; set; }
+    /// <summary>响应下发的 Set-Cookie 原始条目（登录类接口可能用 Set-Cookie 兜底下发 stoken/cookie_token/ltoken）。</summary>
+    public List<string> SetCookies { get; set; } = new();
 }
 
 public static class JsonExtensions
