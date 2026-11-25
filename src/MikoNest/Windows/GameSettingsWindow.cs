@@ -30,7 +30,7 @@ public sealed class GameSettingsWindow : Window
 
         Title = $"游戏设置 · {game.Name}";
         Width = 600;
-        Height = 430;
+        Height = 520;
         ResizeMode = ResizeMode.NoResize;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         ShowInTaskbar = false;
@@ -84,6 +84,21 @@ public sealed class GameSettingsWindow : Window
         try { if (!string.IsNullOrEmpty(_dir)) free = new DriveInfo(Path.GetPathRoot(_dir)!).AvailableFreeSpace; } catch { }
         info.Children.Add(Row("所在磁盘可用空间", free > 0 ? FormatSize(free) : "未知"));
 
+        // 启动页显隐开关（全局，不区分游戏）：关闭后启动页不再显示对应入口
+        var visHead = new TextBlock
+        {
+            Text = "启动页显示",
+            FontSize = 13,
+            FontWeight = FontWeights.Bold,
+            Foreground = (Brush)Application.Current.Resources["TextPrimary"],
+            Margin = new Thickness(0, 12, 0, 8),
+        };
+        info.Children.Add(visHead);
+        info.Children.Add(Toggle("显示「预约游戏」卡片（左下角）",
+            SettingsService.Settings.ShowReserveGames, v => SettingsService.Settings.ShowReserveGames = v));
+        info.Children.Add(Toggle("显示「米哈云游」按钮（左上角）",
+            SettingsService.Settings.ShowMhyyButton, v => SettingsService.Settings.ShowMhyyButton = v));
+
         var buttons = new WrapPanel { Margin = new Thickness(0, 18, 0, 0) };
         buttons.Children.Add(Button("📂 打开安装目录", OpenInstallDir));
         buttons.Children.Add(Button("🎯 重新定位游戏", Relocate));
@@ -104,6 +119,25 @@ public sealed class GameSettingsWindow : Window
         root.Children.Add(close);
 
         Content = root;
+    }
+
+    /// <summary>启动页显隐开关：勾选即保存，关闭设置面板后由启动页重新推送状态生效。</summary>
+    private FrameworkElement Toggle(string label, bool isChecked, Action<bool> onChange)
+    {
+        var cb = new System.Windows.Controls.CheckBox
+        {
+            Content = label,
+            IsChecked = isChecked,
+            FontSize = 12.5,
+            Margin = new Thickness(0, 0, 0, 8),
+            Foreground = (Brush)Application.Current.Resources["TextPrimary"],
+        };
+        cb.Click += (_, _) =>
+        {
+            onChange(cb.IsChecked == true);
+            SettingsService.Save();
+        };
+        return cb;
     }
 
     private FrameworkElement Row(string label, string value)

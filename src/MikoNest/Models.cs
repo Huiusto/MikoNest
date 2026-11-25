@@ -78,6 +78,10 @@ public class AppSettings
     public string IgnoredUpdateVersion { get; set; } = "";
     /// <summary>启动页「全部游戏」的自定义顺序（gameKey 列表；未出现的游戏按内置顺序补在末尾）</summary>
     public List<string> LaunchGameOrder { get; set; } = new();
+    /// <summary>启动页是否显示左下角「预约游戏」卡片（游戏设置里开关，默认显示）</summary>
+    public bool ShowReserveGames { get; set; } = true;
+    /// <summary>启动页是否显示左上角「米哈云游」按钮（游戏设置里开关，默认显示）</summary>
+    public bool ShowMhyyButton { get; set; } = true;
 }
 
 /// <summary>固定到左侧导航栏的快捷链接</summary>

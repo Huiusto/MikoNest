@@ -16,6 +16,7 @@ public sealed class ChangelogWindow : Window
         new("0.1.32", "2026-11-25", new[]
         {
             "修复「账号」页扫码登录与手机号短信登录均提示「Cookie 无效：登录状态失败」的问题：登录校验不再只依赖 cookie_token，新增 stoken 角色链路（getUserGameRolesByStoken）与 Action Ticket 身份兜底，扫码/短信拿到 stoken 即可完成登录建号。(๑•̀ㅂ•́)و✧",
+            "启动页「游戏设置」新增显隐开关：可自由选择是否显示左下角「预约游戏」卡片与左上角「米哈云游」按钮，关闭后启动页对应入口立即隐藏。(＾▽＾)",
         }),
         new("0.1.31", "2026-11-25", new[]
         {

@@ -276,6 +276,8 @@ public partial class LaunchPage : UserControl
             },
             install = _install != null && _install.Key == _selectedKey ? InstallPayload(_install) : null,
             hint = BuildHint(),
+            showReserve = SettingsService.Settings.ShowReserveGames,
+            showMhyy = SettingsService.Settings.ShowMhyyButton,
         };
 
         var json = JsonSerializer.Serialize(state);

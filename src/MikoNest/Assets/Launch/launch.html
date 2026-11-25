@@ -599,6 +599,9 @@
     renderDots();
     applyBackground();
     $('saving').classList.toggle('on', !!state.preparing);
+    // 游戏设置里的显隐开关：false 才隐藏，未下发时保持默认显示
+    $('btnMhyy').style.display = state.showMhyy === false ? 'none' : '';
+    document.querySelector('.reserve').style.display = state.showReserve === false ? 'none' : 'flex';
   }
 
   window.miNestInit = function (json) {
